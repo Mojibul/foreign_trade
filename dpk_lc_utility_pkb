@@ -1,0 +1,992 @@
+CREATE OR REPLACE PACKAGE BODY STLBAS.dpk_lc_utility
+IS
+---------------------
+   FUNCTION dfn_gettolpct (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN stlbas.stilcmas.tolpct%TYPE
+   IS
+      v_tolpct   stlbas.stilcmas.tolpct%TYPE;
+   BEGIN
+      SELECT a.tolpct
+        INTO v_tolpct
+        FROM stlbas.stilcmas a
+       WHERE a.brancd = in_brancd AND a.actype = in_actype AND a.actnum = in_actnum;
+
+      RETURN v_tolpct;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN 0;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20100,
+                                     'More than one L/c exists '
+                                  || CHR (10)
+                                  || 'L/C AC type: '
+                                  || NVL (in_actype, 'None')
+                                  || CHR (10)
+                                  || 'L/C AC Num: '
+                                  || NVL (in_actnum, 'NONE')
+                                 );
+         RETURN 0;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, SQLERRM);
+         RETURN 0;
+   END;
+
+---------------------
+   FUNCTION dfn_usrbrn (in_usercode IN stlbas.syusrmas.usercode%TYPE, out_brancd OUT VARCHAR2)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT SUBSTR (a.usercode, 1, 3) brancd
+        INTO out_brancd
+        FROM stlbas.syusrmas a
+       WHERE a.valdflag = 'A' AND a.usercode = in_usercode;
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20100, 'No branch define for ' || NVL (in_usercode, 'NONE'));
+         RETURN FALSE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20101, 'More than one branch define for ' || NVL (in_usercode, 'NONE'));
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20102, SQLERRM);
+         RETURN FALSE;
+   END;
+
+-----
+   FUNCTION dfn_getacttit (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN stlbas.stfacmas.acttit%TYPE
+   IS
+      v_acttit   stlbas.stfacmas.acttit%TYPE;
+   BEGIN
+      SELECT NVL (a.acttit, 'A/c title not define')
+        INTO v_acttit
+        FROM stlbas.stfacmas a
+       WHERE a.brancd = in_brancd AND a.actype = in_actype AND a.actnum = in_actnum;
+
+      RETURN v_acttit;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 'None';
+   END;
+
+------
+   FUNCTION dfn_getilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN stlbas.stilcmas%ROWTYPE
+   IS
+      v_rtn   stlbas.stilcmas%ROWTYPE;
+   BEGIN
+      SELECT a.*
+        INTO v_rtn
+        FROM stlbas.stilcmas a
+       WHERE a.brancd = in_brancd AND a.actype = in_actype AND a.actnum = in_actnum;
+
+      RETURN v_rtn;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+------
+   FUNCTION dnf_getusername (in_usercode IN stlbas.syusrmas.usercode%TYPE)
+      RETURN stlbas.syusrmas.username%TYPE
+   IS
+      v_username   stlbas.syusrmas.username%TYPE;
+   BEGIN
+      SELECT a.username
+        INTO v_username
+        FROM stlbas.syusrmas a
+       WHERE a.usercode = in_usercode;
+
+      RETURN v_username;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 'None';
+   END;
+
+------
+   FUNCTION dfn_getstcodmas_dtl (in_harcod IN stlbas.stcodmas.harcod%TYPE, in_sofcod IN stlbas.stcodmas.sofcod%TYPE)
+      RETURN stlbas.stcodmas%ROWTYPE
+   IS
+      v_return   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      SELECT a.*
+        INTO v_return
+        FROM stlbas.stcodmas a
+       WHERE a.harcod = in_harcod AND a.sofcod = in_sofcod;
+
+      RETURN v_return;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+---------------
+   FUNCTION dfn_tolerance_checking
+      RETURN BOOLEAN
+   IS
+      v_stcodmas_rec   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      v_stcodmas_rec             := dpk_lc_utility.dfn_getstcodmas_dtl (in_harcod => 'LCA', in_sofcod => 'LTC');
+
+      IF v_stcodmas_rec.corcod = 'Y'
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   END;
+
+   --
+   FUNCTION dfn_chk_acceptance_amt (
+      in_acpamt   IN   stlbas.stilcmas.acpamt%TYPE,
+      in_lcamtf   IN   stlbas.stilcmas.lcamtf%TYPE,
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      v_tolpct           NUMBER;
+      v_percentage_amt   NUMBER;
+   BEGIN
+      -- check acceptacne value
+      IF SIGN (NVL (in_acpamt, 0)) != 1
+      THEN
+         raise_application_error (-20100, 'Acceptance amount zero or negative not allowed.');
+      END IF;
+
+      IF dpk_lc_utility.dfn_tolerance_checking
+      THEN
+         v_tolpct                   :=
+                                 dfn_gettolpct (in_brancd      => in_brancd, in_actype => in_actype,
+                                                in_actnum      => in_actnum);
+         v_percentage_amt           := dfn_get_percentage_amt (in_amount => in_lcamtf, in_percentage => v_tolpct);
+
+         IF in_acpamt > (in_lcamtf + v_percentage_amt)
+         THEN
+            raise_application_error (-20101,
+                                        'Acceptance amount with  ('
+                                     || TO_CHAR (in_acpamt)
+                                     || ') exceed maximum '
+                                     || TO_CHAR (v_tolpct)
+                                     || ' tolerable acceptance value ('
+                                     || TO_CHAR (in_lcamtf + v_percentage_amt)
+                                     || ' )'
+                                    );
+         END IF;
+      ELSE
+         IF in_acpamt > in_lcamtf
+         THEN
+            raise_application_error (-20102,
+                                        'Acceptance amount ('
+                                     || TO_CHAR (in_acpamt)
+                                     || ') more then outstanding LC value ('
+                                     || TO_CHAR (in_lcamtf)
+                                     || ' )'
+                                    );
+         END IF;
+      END IF;
+
+      RETURN TRUE;
+   END;
+
+-------
+   FUNCTION dfn_get_percentage_amt (in_amount IN NUMBER, in_percentage IN NUMBER)
+      RETURN NUMBER
+   IS
+   BEGIN
+      RETURN ((NVL (in_amount, 0) * NVL (in_percentage, 0)) / 100);
+   END;
+
+   ----
+   FUNCTION dfn_get_lcnumber (in_refdocno IN stlbas.sttrndtl.refdocno%TYPE)
+      RETURN stlbas.stilcmas.lcnumb%TYPE
+   IS
+      r_lcnumb   stlbas.stilcmas.lcnumb%TYPE;
+   BEGIN
+      SELECT NVL (a.lcnumb, 'NONE')
+        INTO r_lcnumb
+        FROM stlbas.stilcmas a
+       WHERE EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran b
+                 WHERE b.brancd = a.brancd
+                   AND b.brancd = SUBSTR (in_refdocno, 0, 3)
+                   AND a.brancd = SUBSTR (in_refdocno, 0, 3)
+                   AND b.actype = a.actype
+                   AND b.actnum = a.actnum
+                   AND b.docnum = in_refdocno)
+         AND a.brancd = SUBSTR (in_refdocno, 0, 3);
+
+      RETURN r_lcnumb;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 'NONE';
+   END;
+
+-----
+   FUNCTION dfn_get_headoffice_id
+      RETURN stlbas.stcodmas.sofcod%TYPE
+   IS
+      v_rec   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      v_rec                      := dfn_getstcodmas_dtl (in_harcod => 'BRN', in_sofcod => 'HED');
+      RETURN v_rec.corcod;
+   END;
+
+----
+   FUNCTION dfn_get_lc_outstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno)
+         AND dt.docttype = 'J1'
+         AND dt.acctcode IN ('26300-01', '26300-02');
+
+      -- 26300-01
+
+      -- FOR UPDATE;                                       -- lock the entire row
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+--------------------
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno)
+         AND dt.docttype = 'J1'
+         AND dt.acctcode IN ('26200-01', '26200-02');
+
+      -- Loct the entire row
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+------------------
+   FUNCTION dfn_get_glcode (
+      in_brancd   IN   stlbas.stfoprcd.brancd%TYPE,
+      in_trntyp   IN   stlbas.stfoprcd.trntyp%TYPE,
+      in_oprcod   IN   stlbas.stfoprcd.oprcod%TYPE,
+      in_curcde   IN   stlbas.stfoprcd.curcde%TYPE
+   )
+      RETURN stlbas.stfoprcd.glcode%TYPE
+   IS
+      v_glcode   stlbas.stfoprcd.glcode%TYPE;
+   BEGIN
+      SELECT a.glcode
+        INTO v_glcode
+        FROM stlbas.stfoprcd a
+       WHERE a.brancd = in_brancd AND a.trntyp = in_trntyp AND a.oprcod = in_oprcod AND a.curcde = in_curcde;
+
+      IF dpk_lc_utility.dfn_verify_glcode (in_acctcode => v_glcode)
+      THEN
+         RETURN v_glcode;
+      ELSE
+         raise_application_error (-20103,
+                                     'Invalid GL Code !!! '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator and Define it in the Chart Of Account...'
+                                 );
+         RETURN NULL;
+      END IF;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20100,
+                                     'Invalid Operation Code '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator and Define it in the Operation Code Parameters...'
+                                 );
+         RETURN NULL;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102,
+                                     'More than One Operation Code available for this Instrument. '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator.'
+                                 );
+         RETURN NULL;
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+-----------------
+   FUNCTION dfn_verify_glcode (in_acctcode IN stlbas.stchrtac.acctcode%TYPE)
+      RETURN BOOLEAN
+   IS
+      v_acctname   stlbas.stchrtac.acctname%TYPE;
+   BEGIN
+      SELECT LTRIM (RTRIM (acctname))
+        INTO v_acctname
+        FROM stlbas.stchrtac
+       WHERE grupcode = stlbas.dpk_lc_utility.groupcode AND acctcode = in_acctcode;
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20101,
+                                     'GL Code Not available in Chart of Account !!! '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator.'
+                                 );
+         RETURN FALSE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102,
+                                     'More than One GL Code available for this Instrument. '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator.'
+                                 );
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         RETURN FALSE;
+   END;
+
+-----------------
+   FUNCTION dfn_get_lc_outstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   stlbas.stilcmas.rmamtl%TYPE;
+   BEGIN
+      SELECT NVL (SUM (NVL (a.rmamtl, 0)), 0) tliab
+        INTO v_liability
+        FROM stlbas.stilcmas a,
+             (SELECT DISTINCT b.brancd, b.actype, b.actnum, b.acttit, b.cuscod
+                         FROM stlbas.stfacmas b
+                        WHERE b.brancd = in_brancd AND b.cuscod = in_cuscod AND b.actype = in_actype             --'T05'
+                                                                                                    ) b
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype                                                                                --'T05'
+         AND a.rmamtf > 0
+         AND a.lcstat IN ('ISS', 'AMD', 'ACP', 'SHG', 'PAD', 'RAD')
+         AND a.brancd = b.brancd
+         AND a.actype = b.actype
+         AND a.actnum = b.actnum;
+
+      RETURN v_liability;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN 0;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, SQLERRM || CHR (10) || 'Contact your System Administrator.');
+   END;
+
+------------------
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   stlbas.sttftran.seamtl%TYPE;
+   BEGIN
+      SELECT NVL (SUM (NVL (b.seamtl, 0)), 0)
+        INTO v_liability
+        FROM stlbas.stilcmas a,
+             (SELECT a.brancd brancd, a.actype actype, a.actnum actnum, a.sgacno sgacno, NVL (a.seamtf, 0) seamtf,
+                     NVL (a.seamtl, 0) seamtl, a.invdat invdat, a.crfdat crfdat, a.valdat valdat, b.acttit
+                FROM stlbas.sttftran a,
+                     (SELECT DISTINCT b.brancd, b.actype, b.actnum, b.cuscod, b.acttit
+                                 FROM stlbas.stfacmas b
+                                WHERE b.brancd = in_brancd AND b.cuscod = in_cuscod AND b.actype = in_actype     --'T05'
+                                                                                                            ) b
+               WHERE a.brancd = b.brancd
+                 AND a.actype = b.actype
+                 AND a.actnum = b.actnum
+                 AND a.brancd = in_brancd
+                 AND a.actype = in_actype                                                                        --'T05'
+                 AND a.oprcod = 'MIA'
+                 AND a.oprtyp = 'ACP'
+                 AND NVL (a.status, 'X') = 'I') b
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype                                                                                --'T05'
+         AND NVL (a.acprmt, 0) > 0
+         --AND a.lcstat IN ('ISS', 'AMD', 'ACP', 'SHG', 'PAD', 'RAD') -- not needed
+         AND a.brancd = b.brancd
+         AND a.actype = b.actype
+         AND a.actnum = b.actnum;
+
+      RETURN v_liability;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN 0;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, SQLERRM || CHR (10) || 'Contact your System Administrator.');
+   END;
+
+-------------------
+
+   -- Get LC outstanding (LC + ABP) amount
+   FUNCTION dfn_getlctotaloutstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER
+   IS
+   -- v_total_outstanding   stlbas.stilcmas.rmamtl%TYPE; -- mojibul_22012013 not needed
+   BEGIN
+      RETURN   stlbas.dpk_lc_utility.dfn_get_outstanding_abp (in_brancd      => in_brancd,
+                                                              in_actype      => in_actype,
+                                                              in_cuscod      => in_cuscod
+                                                             )
+             + stlbas.dpk_lc_utility.dfn_get_lc_outstanding (in_brancd      => in_brancd,
+                                                             in_actype      => in_actype,
+                                                             in_cuscod      => in_cuscod
+                                                            );
+   END;
+
+---
+   FUNCTION dfn_getilcmas (in_brancd IN stlbas.stilcmas.brancd%TYPE, in_lcnumb IN stlbas.stilcmas.lcnumb%TYPE)
+      RETURN stlbas.stilcmas%ROWTYPE
+   IS
+      v_rtn   stlbas.stilcmas%ROWTYPE;
+   BEGIN
+      SELECT a.*
+        INTO v_rtn
+        FROM stlbas.stilcmas a
+       WHERE a.brancd = in_brancd AND a.lcnumb = in_lcnumb;
+
+      RETURN v_rtn;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+---
+   FUNCTION dfn_getft_code_detail (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_oprcod     IN   stlbas.ft_code_detail.oprcod%TYPE
+   )
+      RETURN stlbas.ft_code_detail%ROWTYPE
+   IS
+      v_rtn   stlbas.ft_code_detail%ROWTYPE;
+   BEGIN
+      SELECT a.*
+        INTO v_rtn
+        FROM stlbas.ft_code_detail a
+       WHERE a.lctype = in_lctype AND a.lcoprtyp = in_lcoprtyp AND a.oprcod = in_oprcod;
+
+      RETURN v_rtn;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+-----
+   FUNCTION dfn_getft_code_detail (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_debcre     IN   stlbas.ft_code_detail.debcre%TYPE
+   )
+      RETURN stlbas.ft_code_detail%ROWTYPE
+   IS
+      v_rtn   stlbas.ft_code_detail%ROWTYPE;
+   BEGIN
+      SELECT a.*
+        INTO v_rtn
+        FROM stlbas.ft_code_detail a
+       WHERE a.lctype = in_lctype AND a.lcoprtyp = in_lcoprtyp AND a.debcre = in_debcre;
+
+      RETURN v_rtn;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20101, SQLERRM || CHR (10) || 'Contact your System Administrator.');
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20102, SQLERRM || CHR (10) || 'Contact your System Administrator.');
+   END;
+
+-----
+   FUNCTION dfn_getlclib_glcode (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_debcre     IN   stlbas.ft_code_detail.debcre%TYPE
+   )
+      RETURN stlbas.ft_code_detail.glcode%TYPE
+   IS
+      v_rtn   stlbas.ft_code_detail%ROWTYPE;
+   BEGIN
+      v_rtn                      :=
+         stlbas.dpk_lc_utility.dfn_getft_code_detail (in_lctype        => in_lctype,
+                                                      in_lcoprtyp      => in_lcoprtyp,
+                                                      in_debcre        => in_debcre
+                                                     );
+      RETURN v_rtn.glcode;
+   END;
+
+---------
+   FUNCTION dfn_get_outstanding_shg (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno)
+         AND dt.docttype = 'J1'
+         AND dt.acctcode = '26300-08';
+
+      --AND dt.acctcode IN ('26200-01', '26200-02', '26200-03', '26200-04', '26200-05');
+
+      -- Loct the entire row
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+---------------------
+   FUNCTION dfn_get_outstanding_shg (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE,
+      in_sgacno   IN   stlbas.sttftran.sgacno%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno
+                   AND t.sgacno = in_sgacno
+                   AND t.oprtyp = 'SHG'
+                   AND NVL (t.status, 'X') = 'I')
+         AND dt.docttype = 'J1'
+         AND dt.acctcode = '26300-08';
+
+      --AND dt.acctcode IN ('26200-01', '26200-02', '26200-03', '26200-04', '26200-05');
+
+      -- Loct the entire row
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+---------------------
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE,
+      in_sgacno   IN   stlbas.sttftran.sgacno%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno
+                   AND t.sgacno = in_sgacno
+                   AND t.oprtyp = 'ACP'
+                   AND NVL (t.status, 'X') = 'I')
+         AND dt.docttype = 'J1'
+         AND dt.acctcode IN ('26300-02', '26200-01');
+
+      -- Loct the entire row
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+-- Get LC outstanding (LC + ABP) amount
+   FUNCTION dfn_getlctotaloutstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+   BEGIN
+      RETURN   stlbas.dpk_lc_utility.dfn_get_outstanding_abp (in_brancd      => in_brancd,
+                                                              in_actype      => in_actype,
+                                                              in_actnum      => in_actnum
+                                                             )
+             + stlbas.dpk_lc_utility.dfn_get_lc_outstanding (in_brancd      => in_brancd,
+                                                             in_actype      => in_actype,
+                                                             in_actnum      => in_actnum
+                                                            )
+             + stlbas.dpk_lc_utility.dfn_get_outstanding_shg (in_brancd      => in_brancd,
+                                                              in_actype      => in_actype,
+                                                              in_actnum      => in_actnum
+                                                             );
+   END;
+
+---------------------
+   FUNCTION dfn_get_outstanding_margin (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno)
+         -- AND dt.docttype = 'J1'
+         AND dt.acctcode = '20750-01';
+
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+----------------------
+   FUNCTION dfn_get_abp_margin (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER
+   IS
+      v_liability   NUMBER;
+   BEGIN
+      SELECT NVL (SUM (DECODE (dt.dbcrcode, 'C', jvlcamnt, -jvlcamnt)), 0) lcliab
+        INTO v_liability
+        FROM stlbas.sttrndtl dt
+       WHERE dt.compcode = in_brancd
+         AND EXISTS (
+                SELECT 1
+                  FROM stlbas.sttftran t
+                 WHERE t.brancd = in_brancd
+                   AND t.actype = in_actype
+                   AND t.actnum = in_actnum
+                   AND t.brancd = dt.compcode
+                   AND t.docnum = dt.refdocno)
+         -- AND dt.docttype = 'J1'
+         AND dt.acctcode = '20750-24';
+
+      RETURN v_liability;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+----------------------
+-------------------
+   FUNCTION dfn_get_glcode (
+      in_brancd   IN   stlbas.stfaccur.brancd%TYPE,
+      in_actype   IN   stlbas.stfaccur.actype%TYPE,
+      in_curcde   IN   stlbas.stfaccur.curcde%TYPE,
+      in_date     IN   stlbas.stfaccur.effdat%TYPE
+   )
+      RETURN stlbas.stfaccur.glcode%TYPE
+   IS
+      v_glcode   stlbas.stfaccur.glcode%TYPE;
+   BEGIN
+      SELECT a.glcode
+        INTO v_glcode
+        FROM stlbas.stfaccur a
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.curcde = in_curcde
+         AND a.typcde = 'GEN'
+         AND a.effdat =
+                (SELECT MAX (b.effdat)
+                   FROM stlbas.stfaccur b
+                  WHERE b.brancd = in_brancd
+                    AND b.actype = in_actype
+                    AND b.curcde = in_curcde
+                    AND b.typcde = 'GEN'
+                    AND b.effdat <= in_date);
+
+      RETURN v_glcode;
+
+      IF dpk_lc_utility.dfn_verify_glcode (in_acctcode => v_glcode)
+      THEN
+         RETURN v_glcode;
+      ELSE
+         raise_application_error (-20103,
+                                     'Invalid GL Code !!! '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator and Define it in the Chart Of Account...'
+                                 );
+         RETURN NULL;
+      END IF;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20100,
+                                     'Invalid Operation Code '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator and Define it in the Operation Code Parameters...'
+                                 );
+         RETURN NULL;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102,
+                                     'More than One Operation Code available for this Instrument. '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator.'
+                                 );
+         RETURN NULL;
+      WHEN OTHERS
+      THEN
+         RETURN NULL;
+   END;
+
+----------------------
+   FUNCTION dfn_getcode_desc (in_harcod IN stlbas.stcodmas.harcod%TYPE, in_sofcod IN stlbas.stcodmas.sofcod%TYPE)
+      RETURN VARCHAR2
+   IS
+      v_rec   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      v_rec                      := dfn_getstcodmas_dtl (in_harcod => in_harcod, in_sofcod => in_sofcod);
+      RETURN v_rec.coddes;
+   END;
+
+-----------------------
+   FUNCTION dfn_get_dummy_ac (in_brancd IN stlbas.stfacmas.brancd%TYPE, in_curcde IN stlbas.stfacmas.curcde%TYPE)
+      RETURN stlbas.stfacmas.actnum%TYPE
+   IS
+      v_actnum   stlbas.stfacmas.actnum%TYPE;
+   BEGIN
+      IF in_curcde <> 'BDT'
+      THEN
+         SELECT a.actnum
+           INTO v_actnum
+           FROM stlbas.stfacmas a
+          WHERE a.brancd = in_brancd AND a.actype = 'Z95' AND a.curcde = in_curcde AND a.cuscod = '00000000';
+      ELSIF in_curcde = 'BDT'
+      THEN
+         v_actnum                   := in_brancd || 'Z9500003';
+      END IF;
+
+      RETURN v_actnum;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20101, 'Dummy Account not Available ');
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102, 'More than one Dummy Account Available');
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20103, SQLERRM);
+   END dfn_get_dummy_ac;
+
+   FUNCTION dfn_get_glcode (
+      in_grupcode   IN   stlbas.stchrtac.grupcode%TYPE,
+      in_headcode   IN   stlbas.stchrtac.headcode%TYPE,
+      in_brancd     IN   stlbas.stchrtac.brancd%TYPE,
+      in_curcde     IN   stlbas.stchrtac.curcde%TYPE
+   )
+      RETURN stlbas.stchrtac.acctcode%TYPE
+   IS
+      v_glcode   stlbas.stchrtac.acctcode%TYPE;
+   BEGIN
+      SELECT a.acctcode
+        INTO v_glcode
+        FROM stlbas.stchrtac a
+       WHERE a.grupcode = in_grupcode AND a.headcode = in_headcode AND a.brancd = in_brancd AND a.curcde = in_curcde;
+
+      RETURN v_glcode;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20100,
+                                     'Invalid Operation Code '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator and Define it in the Operation Code Parameters...'
+                                 );
+         RETURN NULL;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102,
+                                     'More than One Operation Code available for this Instrument. '
+                                  || CHR (10)
+                                  || 'Contact your System Administrator.'
+                                 );
+         RETURN NULL;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20103, SQLERRM || CHR (10) || 'Contact your System Administrator.');
+         RETURN NULL;
+   END dfn_get_glcode;
+
+   FUNCTION dfn_get_branch_fc_glcode (
+      in_brancd   IN   stlbas.stchrtac.brancd%TYPE,
+      in_curcde   IN   stlbas.stchrtac.curcde%TYPE
+   )
+      RETURN stlbas.stchrtac.acctcode%TYPE
+   IS
+   BEGIN
+      RETURN dpk_lc_utility.dfn_get_glcode (in_grupcode      => dpk_lc_utility.groupcode,
+                                            in_headcode      => dpk_lc_utility.fcheadcode,
+                                            in_brancd        => in_brancd,
+                                            in_curcde        => in_curcde
+                                           );
+   END dfn_get_branch_fc_glcode;
+
+   -- get user user id
+   FUNCTION dfn_get_cuscod (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN stlbas.stfacmas.cuscod%TYPE
+   IS
+      v_cuscod   stlbas.stfacmas.cuscod%TYPE;
+   BEGIN
+      SELECT a.cuscod
+        INTO v_cuscod
+        FROM stlbas.stfacmas a
+       WHERE a.brancd = in_brancd AND a.actype = in_actype AND a.actnum = in_actnum;
+
+      RETURN v_cuscod;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, 'Customer ID not found ' || CHR (10) || SQLERRM);
+   END;
+
+   FUNCTION dfn_branch_calcurrency (in_cacmpcde stlbas.syparmas.cacmpcde%TYPE)
+      RETURN stlbas.syparmas.calcrcde%TYPE
+   IS
+      v_calcrcde   stlbas.syparmas.calcrcde%TYPE;
+   BEGIN
+      SELECT a.calcrcde
+        INTO v_calcrcde
+        FROM stlbas.syparmas a
+       WHERE a.cagrpcde = '001' AND a.cacmpcde = in_cacmpcde;
+
+      RETURN v_calcrcde;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, 'Calculation currency not get ' || CHR (10) || SQLERRM);
+   END;
+END;
+/
