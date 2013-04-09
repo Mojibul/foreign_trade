@@ -1,0 +1,1367 @@
+CREATE OR REPLACE PACKAGE BODY STLBAS.dpk_lclimit
+IS
+---------
+   FUNCTION dfn_getbooking_amt (
+      in_brancd         IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype         IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod         IN       stlbas.stfacmas.cuscod%TYPE,
+      out_regl_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_onel_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT NVL (SUM (DECODE (NVL (b.regone, 'R'), 'R', NVL (a.lcamtl, 0))), 0) rl,
+             NVL (SUM (DECODE (b.regone, 'O', NVL (a.lcamtl, 0))), 0) ol
+        INTO out_regl_bokamt,
+             out_onel_bokamt
+        FROM stlbas.stilcmas a, stlbas.stfacmas b
+       WHERE a.brancd = in_brancd
+         AND b.brancd = in_brancd
+         AND a.actype = in_actype
+         AND b.actype = in_actype
+         AND a.brancd = b.brancd
+         AND a.actype = b.actype
+         AND a.actnum = b.actnum
+         AND a.lcstat = 'OPN'
+         AND b.cuscod = in_cuscod;
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_regl_bokamt            := 0;
+         out_onel_bokamt            := 0;
+         RETURN TRUE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20201, ' Generate from dfn_getbookingamt_ft ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+---------
+   FUNCTION dfn_get_reg_booking_amt (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      out_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      v_bokamt   stlbas.stilcmas.lcamtl%TYPE;
+   BEGIN
+      IF dfn_getbooking_amt (in_brancd            => in_brancd,
+                             in_actype            => in_actype,
+                             in_cuscod            => in_cuscod,
+                             out_regl_bokamt      => out_bokamt,
+                             out_onel_bokamt      => v_bokamt
+                            )
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   END;
+
+-------
+   FUNCTION dfn_get_one_booking_amt (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE,
+      in_srlnum   IN   stlbas.stfacmas.srlnum%TYPE
+   )
+      RETURN stlbas.stilcmas.lcamtl%TYPE
+   IS
+      v_bokamt   stlbas.stilcmas.lcamtl%TYPE;
+   BEGIN
+      SELECT NVL (SUM (DECODE (b.regone, 'O', NVL (a.lcamtl, 0))), 0) ol
+        INTO v_bokamt
+        FROM stlbas.stilcmas a, stlbas.stfacmas b
+       WHERE a.brancd = in_brancd
+         AND b.brancd = in_brancd
+         AND a.actype = in_actype
+         AND b.actype = in_actype
+         AND a.brancd = b.brancd
+         AND a.actype = b.actype
+         AND a.actnum = b.actnum
+         AND a.lcstat = 'OPN'
+         AND b.srlnum = in_srlnum
+         AND b.cuscod = in_cuscod;
+
+      RETURN v_bokamt;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN 0;
+   END;
+
+---
+   FUNCTION dfn_get_actype_limit_amt (
+      in_actype    IN       stlbas.stlondoc.actype%TYPE,
+      out_limamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT NVL (dl.limamt, 0)
+        INTO out_limamt
+        FROM stlbas.stlondoc dl
+       WHERE dl.actype = in_actype AND dl.actflg = 'Y';
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_limamt                 := 0;
+         RETURN TRUE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20201, ' Generate from  dfn_get_actype_limit_amt :' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+---
+   FUNCTION dfn_get_current_loan_amt (
+      in_cuscod      IN       stlbas.stfacmas.cuscod%TYPE,
+      out_tloanamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT NVL (SUM (ABS (NVL (f.curbal, 0))), 0)
+        INTO out_tloanamt
+        FROM stlbas.stfacmas f
+       WHERE actype IN (
+                SELECT a.sofcod
+                  FROM stlbas.stcodmas a
+                 WHERE a.harcod =
+                          (SELECT b.sofcod
+                             FROM stlbas.stcodmas b
+                            WHERE b.harcod = (SELECT c.sofcod
+                                                FROM stlbas.stcodmas c
+                                               WHERE c.harcod = '***' AND c.sofcod = 'LMT' AND c.actflg = 'Y')
+                              AND b.sofcod = 'T05'))
+         AND f.cuscod = in_cuscod
+         AND f.acstat = 'ACT'
+         AND (f.regone = 'R' OR f.regone IS NULL);
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_tloanamt               := 0;
+         RETURN TRUE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20201, ' Generate from  dfn_get_current_loan_amt :' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+----
+   FUNCTION dfn_chk_reglmt_expdat
+      RETURN BOOLEAN
+   IS
+      v_corcod   stlbas.stcodmas.corcod%TYPE;
+   BEGIN
+      SELECT c.corcod
+        INTO v_corcod
+        FROM stlbas.stcodmas c
+       WHERE c.harcod =
+                (SELECT b.sofcod
+                   FROM stlbas.stcodmas b
+                  WHERE b.harcod = (SELECT a.sofcod
+                                      FROM stlbas.stcodmas a
+                                     WHERE a.harcod = '***' AND a.actflg = 'Y' AND a.corcod = 'Y')
+                    AND b.actflg = 'Y'
+                    AND b.corcod = 'Y')
+         AND c.sofcod = 'REG'
+         AND c.actflg = 'Y'
+         AND c.corcod = 'Y';
+
+      IF v_corcod = 'Y'
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN FALSE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20100,
+                                     'Multiple record exist in stcodmas table.'
+                                  || CHR (10)
+                                  || 'Harcod: COL and sofcod : 002'
+                                  || ' Contact to IT Dept. '
+                                 );
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, 'Generate from  dfn_chk_reglmt_expdat: ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+--
+   FUNCTION dfn_chk_custcode (in_cuscod IN stlbas.stfacmas.cuscod%TYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      IF in_cuscod IS NOT NULL
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   END;
+
+---
+   FUNCTION dfn_get_total_usedlmt (
+      in_brancd    IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_sancid    IN       stlbas.stbrnlmt.sancid%TYPE,
+      out_usdlmt   OUT      stlbas.stbrnlmt.usdlmt%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT NVL (SUM (a.usdlmt), 0)
+        INTO out_usdlmt
+        FROM stlbas.stbrnlmt a
+       WHERE a.brancd = in_brancd AND a.sancid = in_sancid;
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_usdlmt                 := 0;
+         RETURN TRUE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         RETURN FALSE;
+   END;
+
+--------------
+   FUNCTION dpr_chk_regular_limit (
+      in_brancd     IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_actype     IN       stlbas.stbrnlmt.actype%TYPE,
+      in_cuscod     IN       stlbas.stbrnlmt.cuscod%TYPE,
+      in_lcexpdat   IN       stlbas.stbrnlmt.expdat%TYPE,
+      in_lcopndat   IN       stlbas.stbrnlmt.expdat%TYPE,
+      in_libamt     IN       stlbas.stilcmas.lcamtl%TYPE,
+      in_lmttyp     IN       VARCHAR2,
+      out_lcappv    OUT      VARCHAR2,
+      out_sancid    OUT      stlbas.stglblmt.sancid%TYPE,
+      out_bokamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_lonamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_avllmt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_lmtamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_exclmt    OUT      NUMBER,
+      out_msg       OUT      VARCHAR2
+   )
+      RETURN BOOLEAN
+   IS
+      v_lmtamt       stlbas.stbrnlmt.lmtamt%TYPE;
+      v_avllmt       stlbas.stbrnlmt.lmtamt%TYPE;
+      v_sancst       stlbas.stglblmt.sancst%TYPE;
+      v_appflg       stlbas.stglblmt.appflg%TYPE;
+      v_sancid       stlbas.stbrnlmt.sancid%TYPE;
+      v_ind_expdat   stlbas.stbrnlmt.expdat%TYPE;
+      v_ind_eftdat   stlbas.stbrnlmt.eftdat%TYPE; 
+      v_sanclm       stlbas.stglblmt.sanclm%TYPE;
+      v_nfunlm       stlbas.stglblmt.nfunlm%TYPE;
+      v_glb_dateto   stlbas.stglblmt.dateto%TYPE;
+      v_glb_datefr   stlbas.stglblmt.datefr%TYPE;
+      v_avlglblmt    stlbas.stbrnlmt.lmtamt%TYPE;
+      v_actyplmt     stlbas.stlondoc.limamt%TYPE;
+      v_bokamt       stlbas.stilcmas.lcamtl%TYPE;
+      v_slnamt       stlbas.stbrnlmt.usdlmt%TYPE;
+      v_usdlmt       stlbas.stbrnlmt.usdlmt%TYPE;
+      v_usdlmt1      stlbas.stbrnlmt.usdlmt%TYPE;
+      v_expdat       DATE;
+      v_effdat       DATE;
+      v_chngamt      stlbas.stbrnlmt.usdlmt%TYPE;
+
+      CURSOR chkreglmt_cur
+      IS
+         SELECT     b.lmtamt, ((NVL (b.lmtamt, 0) + NVL (b.trflmt, 0)) - NVL (b.usdlmt, 0)) avllmt,
+                    NVL (g.sancst, 'I'), NVL (g.appflg, 'Y'), b.sancid, NVL (b.expdat, g.dateto),
+                    NVL (b.eftdat, g.datefr), g.sanclm, g.nfunlm, g.dateto, g.datefr, b.usdlmt
+               FROM stglblmt g, stbrnlmt b
+              WHERE g.sancid = b.sancid AND b.brancd = in_brancd AND b.actype = in_actype AND b.cuscod = in_cuscod
+         FOR UPDATE;
+   BEGIN
+      out_lcappv                 := 'N';
+
+      IF NOT stlbas.dpk_lclimit.dfn_chk_custcode (in_cuscod => in_cuscod)
+      THEN
+         raise_application_error (-20201, ' Customer code cannot be blank. ');
+      END IF;
+
+      IF NOT stlbas.dpk_lclimit.dfn_get_actype_limit_amt (in_actype => in_actype, out_limamt => v_actyplmt)
+      THEN
+         raise_application_error (-20202, ' Account Type Limit Amount Problem ');
+      END IF;
+
+      CASE in_lmttyp
+         WHEN 'R'
+         THEN
+            IF NOT chkreglmt_cur%ISOPEN
+            THEN
+               OPEN chkreglmt_cur;
+            END IF;
+
+            FETCH chkreglmt_cur
+             INTO v_lmtamt, v_avllmt, v_sancst, v_appflg, v_sancid, v_ind_expdat, v_ind_eftdat, v_sanclm, v_nfunlm,
+                  v_glb_dateto, v_glb_datefr, v_usdlmt1;
+
+            IF chkreglmt_cur%NOTFOUND
+            THEN
+               raise_application_error (-20203,
+                                           ' Corporate Office not define Regular limit.'
+                                        || CHR (10)
+                                        || ' Please contact to credit Admin. '
+                                       );
+            END IF;
+
+            IF SIGN (v_usdlmt1) = -1
+            THEN
+               raise_application_error (-20120,
+                                           ' Used limit amount ('
+                                        || TO_CHAR (v_usdlmt1)
+                                        || ') shown negative figure. '
+                                        || CHR (10)
+                                        || ' Please contact to IT. '
+                                       );
+            END IF;
+
+            IF NOT stlbas.dpk_lclimit.dfn_get_reg_booking_amt (in_brancd       => in_brancd,
+                                                               in_actype       => in_actype,
+                                                               in_cuscod       => in_cuscod,
+                                                               out_bokamt      => v_bokamt
+                                                              )
+            THEN
+               raise_application_error (-20204, ' Booking amount problem ');
+            END IF;
+
+            IF NOT stlbas.dpk_lclimit.dfn_get_current_loan_amt (in_cuscod => in_cuscod, out_tloanamt => v_slnamt)
+            THEN
+               raise_application_error (-20105, ' Face problem to get party outstanding loan amount.');
+            END IF;
+
+            IF NOT stlbas.dpk_lclimit.dfn_getexcovrlmt (in_brancd       => in_brancd,
+                                                        in_actype       => in_actype,
+                                                        in_cuscod       => in_cuscod,
+                                                        out_sumamt      => out_exclmt
+                                                       )
+            THEN
+               raise_application_error (-20106, ' Problem  arise  when getting  excess over limit amount ');
+            END IF;
+
+            CASE
+               WHEN v_sancst <> 'A'                                                                   -- Sanction status
+               THEN
+                  raise_application_error (-20107,
+                                              'Global limit defined but sanction status inactive.'
+                                           || CHR (10)
+                                           || 'Sanction ID : '
+                                           || v_sancid
+                                           || 'Status : '
+                                           || v_sancst
+                                          );
+               WHEN v_appflg <> 'Y'                                                          -- Sanction approval status
+               THEN
+                  raise_application_error (-20108,
+                                              'Global Limit defined but Sanction not approved ! '
+                                           || CHR (10)
+                                           || 'Sanction ID : '
+                                           || v_sancid
+                                           || 'Approval status: '
+                                           || v_appflg
+                                          );
+               WHEN     (in_lcopndat NOT BETWEEN v_ind_eftdat AND v_ind_expdat)
+                    AND stlbas.dpk_lclimit.dfn_chk_limit_date ('OPN')
+               THEN
+                  raise_application_error
+                          (-20109,
+                              'Global Limit defined but LC open date not exist between effective data and expiry data.'
+                           || CHR (10)
+                           || 'Sanction ID: '
+                           || v_sancid
+                           || CHR (10)
+                           || 'Effective Date: '
+                           || TO_CHAR (v_ind_eftdat, 'DD-MON-RRRR')
+                           || CHR (10)
+                           || 'Expiry Date: '
+                           || TO_CHAR (v_ind_expdat, 'DD-MON-RRRR')
+                          );
+               WHEN in_lcopndat NOT BETWEEN v_glb_datefr AND v_glb_dateto AND stlbas.dpk_lclimit.dfn_chk_reglmt_expdat
+               THEN
+                  raise_application_error
+                     (-20110,
+                         'Global Limit defined but LC open date not exist between global effective data and global expiry data .'
+                      || CHR (10)
+                      || 'Sanction ID : '
+                      || v_sancid
+                      || CHR (10)
+                      || 'LC open date: '
+                      || TO_CHAR (in_lcopndat, 'DD-MON-RRRR')
+                      || CHR (10)
+                      || 'Effective Date : '
+                      || TO_CHAR (v_glb_datefr, 'DD-MON-RRRR')
+                      || CHR (10)
+                      || 'Expiry Date : '
+                      || TO_CHAR (v_glb_dateto, 'DD-MON-RRRR')
+                     );
+               WHEN     (in_lcexpdat NOT BETWEEN v_ind_eftdat AND v_ind_expdat)
+                    AND stlbas.dpk_lclimit.dfn_chk_limit_date ('EXP')
+               THEN
+                  raise_application_error
+                       (-20111,
+                           'Global Limit defined but LC expiry date not exist between effective date and expiry date .'
+                        || CHR (10)
+                        || 'Sanction ID : '
+                        || v_sancid
+                        || CHR (10)
+                        || 'LC expiry date: '
+                        || TO_CHAR (in_lcexpdat, 'DD-MON-RRRR')
+                        || CHR (10)
+                        || 'Effective Date : '
+                        || TO_CHAR (v_ind_eftdat, 'DD-MON-RRRR')
+                        || CHR (10)
+                        || 'Expiry Date : '
+                        || TO_CHAR (v_ind_expdat, 'DD-MON-RRRR')
+                       );
+               WHEN in_lcexpdat NOT BETWEEN v_glb_datefr AND v_glb_dateto AND stlbas.dpk_lclimit.dfn_chk_reglmt_expdat
+               THEN
+                  raise_application_error
+                     (-20112,
+                         'Global Limit defined but LC expiry date not exist between global effective date and global expiry date .'
+                      || CHR (10)
+                      || 'Sanction ID : '
+                      || v_sancid
+                      || CHR (10)
+                      || 'LC expiry date: '
+                      || TO_CHAR (in_lcexpdat, 'DD-MON-RRRR')
+                      || CHR (10)
+                      || 'Effective Date : '
+                      || TO_CHAR (v_ind_eftdat, 'DD-MON-RRRR')
+                      || CHR (10)
+                      || 'Expiry Date : '
+                      || TO_CHAR (v_expdat, 'DD-MON-RRRR')
+                     );
+               WHEN v_avllmt > 0
+               THEN
+                  IF NOT stlbas.dpk_lclimit.dfn_get_total_usedlmt (in_brancd       => in_brancd,
+                                                                   in_sancid       => v_sancid,
+                                                                   out_usdlmt      => v_usdlmt
+                                                                  )
+                  THEN
+                     raise_application_error (-20113, 'Problem to get total used limit ');
+                  END IF;
+
+                  CASE
+                     WHEN in_libamt > (v_avllmt - (v_slnamt + v_bokamt + out_exclmt))
+                     THEN
+                        IF stlbas.dpk_lclimit.dfn_getbtbeolreq
+                        THEN
+                           out_msg                    :=
+                                 'Your Given L/C  Amount Greater Than available limit.'
+                              || CHR (10)
+                              || 'Available Limit: '
+                              || v_avllmt
+                              || CHR (10)
+                              || 'Total Loan Amount:'
+                              || v_slnamt
+                              || CHR (10)
+                              || 'Total Booking Amount: '
+                              || v_bokamt
+                              || CHR (10)
+                              || 'EOL limit: '
+                              || out_exclmt;
+                           out_lcappv                 := 'Y';
+                           GOTO end_proc;
+                        ELSE
+                           raise_application_error (-20114,
+                                                       'Your Given L/C  Amount Greater Than available limit.'
+                                                    || CHR (10)
+                                                    || 'Available Limit: '
+                                                    || v_avllmt
+                                                    || CHR (10)
+                                                    || 'Total Loan Amount:'
+                                                    || v_slnamt
+                                                    || CHR (10)
+                                                    || 'Total Booking Amount: '
+                                                    || v_bokamt
+                                                    || CHR (10)
+                                                    || 'EOL limit: '
+                                                    || out_exclmt
+                                                   );
+                        END IF;
+                     WHEN in_libamt + v_bokamt + out_exclmt
+                          + dfn_tnfusdlmt (in_brancd => in_brancd, in_sancid => v_sancid) > v_nfunlm
+                     THEN
+                        IF stlbas.dpk_lclimit.dfn_getbtbeolreq
+                        THEN
+                           out_msg                    :=
+                                 'Your Given L/C  Amount Exceeding Non Funded Limit.'
+                              || CHR (10)
+                              || 'Non Funded Limit:'
+                              || v_nfunlm
+                              || CHR (10)
+                              || 'Total Booking Amount: '
+                              || v_bokamt
+                              || CHR (10)
+                              || 'EOL :'
+                              || out_exclmt;
+                           out_lcappv                 := 'Y';
+                           GOTO end_proc;
+                        ELSE
+                           raise_application_error (-20115,
+                                                       'Your Given L/C  Amount Exceeding Non Funded Limit.'
+                                                    || CHR (10)
+                                                    || 'Non Funded Limit:'
+                                                    || v_nfunlm
+                                                    || CHR (10)
+                                                    || 'Total Booking Amount: '
+                                                    || v_bokamt
+                                                    || CHR (10)
+                                                    || 'EOL :'
+                                                    || out_exclmt
+                                                   );
+                        END IF;
+                     WHEN in_libamt + v_bokamt + v_usdlmt + out_exclmt > v_sanclm
+                     THEN
+                        IF stlbas.dpk_lclimit.dfn_getbtbeolreq
+                        THEN
+                           out_msg                    :=
+                                 'Your Given L/C Amount Can''t be Greater than its Group Limit'
+                              || CHR (10)
+                              || 'liability Amount :'
+                              || in_libamt
+                              || CHR (10)
+                              || 'booking amount: '
+                              || v_bokamt
+                              || CHR (10)
+                              || 'Used limit: '
+                              || v_usdlmt
+                              || CHR (10)
+                              || 'EOL :'
+                              || out_exclmt
+                              || 'Available Group Limit: '
+                              || v_sanclm;
+                           out_lcappv                 := 'Y';
+                           GOTO end_proc;
+                        ELSE
+                           raise_application_error (-20116,
+                                                       'Your Given L/C Amount Can''t be Greater than its Group Limit'
+                                                    || CHR (10)
+                                                    || 'liability Amount :'
+                                                    || in_libamt
+                                                    || CHR (10)
+                                                    || 'booking amount: '
+                                                    || v_bokamt
+                                                    || CHR (10)
+                                                    || 'Used limit: '
+                                                    || v_usdlmt
+                                                    || CHR (10)
+                                                    || 'EOL :'
+                                                    || out_exclmt
+                                                    || 'Available Group Limit: '
+                                                    || v_sanclm
+                                                   );
+                        END IF;
+                     ELSE
+                        NULL;
+                  END CASE;
+               WHEN v_avllmt = 0
+               THEN
+                  SELECT ((NVL (a.lmtamt, 0) + NVL (a.trflmt, 0)) - NVL (a.usdlmt, 0)) chngamt
+                    INTO v_chngamt
+                    FROM stlbas.stbrnlmt a, stlbas.stglblmt b
+                   WHERE a.brancd = in_brancd
+                     AND a.sancid = v_sancid
+                     AND a.sancid = b.sancid
+                     AND NVL (a.intrcg, 'N') = 'Y'
+                     AND NVL (b.sancst, 'I') = 'A';
+
+                  IF v_chngamt > 0
+                  THEN
+                     DBMS_OUTPUT.put_line ('Global Limit defined but available Sanction Limit is zero');
+                     DBMS_OUTPUT.put_line (   '!Some limit has found'
+                                           || CHR (13)
+                                           || 'Under the Group  A/c type: '
+                                           || in_actype
+                                           || ' Cus. ID:'
+                                           || in_cuscod
+                                           || ' Limit: '
+                                           || v_chngamt
+                                           || CHR (13)
+                                           || ' which can be interchangeable'
+                                          );
+                  END IF;
+
+                  DBMS_OUTPUT.put_line ('You can go for Corporate Office approval');
+                  out_lcappv                 := 'Y';
+               ELSE
+                  raise_application_error (-20118, ' Limit not available. ');
+            END CASE;
+
+            <<end_proc>>
+            CLOSE chkreglmt_cur;
+
+            out_sancid                 := v_sancid;
+            out_bokamt                 := v_bokamt;
+            out_lonamt                 := v_slnamt;
+            out_avllmt                 := (v_avllmt - (v_slnamt + v_bokamt + out_exclmt));
+            out_lmtamt                 := v_lmtamt;
+         WHEN 'O'
+         THEN
+            NULL;
+         ELSE
+            raise_application_error (-20117, 'Invalid Limit type');
+      END CASE;
+
+      RETURN TRUE;
+   END;
+
+---------------
+   PROCEDURE dfn_getbooking_dtl (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      in_lmttyp    IN       VARCHAR2,
+      out_bokdtl   OUT      sys_refcursor
+   )
+   IS
+   BEGIN
+      OPEN out_bokdtl FOR
+         SELECT a.brancd, a.actype, a.actnum, a.lcamtf, a.exrate, a.lcamtl, a.lcstat, b.regone
+           FROM stlbas.stilcmas a, stlbas.stfacmas b
+          WHERE a.brancd = in_brancd
+            AND b.brancd = in_brancd
+            AND a.actype = in_actype
+            AND b.actype = in_actype
+            AND a.brancd = b.brancd
+            AND a.actype = b.actype
+            AND a.actnum = b.actnum
+            AND a.lcstat = 'OPN'
+            AND NVL (b.regone, 'R') = NVL (in_lmttyp, NVL (b.regone, 'R'))
+            AND b.cuscod = in_cuscod;
+   END;
+
+----------------
+   FUNCTION dfn_getexcovrlmt (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      out_sumamt   OUT      NUMBER
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT NVL (SUM (NVL (ltramt, 0) - NVL (crsval, 0)), 0)
+        INTO out_sumamt
+        FROM stlbas.stfacma2 a, stlbas.stfacmas b
+       WHERE a.brancd = b.brancd
+         AND a.actype = b.actype
+         AND a.actnum = b.actnum
+         AND a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.hrejet = 'N'
+         AND a.approv = 'Y'
+         AND b.brancd = in_brancd
+         AND b.actype = in_actype
+         AND b.cuscod = in_cuscod
+         AND b.acstat = 'Y'
+         AND b.regone = DECODE (b.regone, NULL, 'R', 'R');
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_sumamt                 := 0;
+         RETURN TRUE;
+      WHEN OTHERS
+      THEN
+         out_sumamt                 := 0;
+         raise_application_error (-20100, 'dpk_lclimit.dfn_getexcovrlmt ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+-----------
+   FUNCTION dfn_getreglimitdtl (
+      in_sancid    IN       stlbas.stglblmt.sancid%TYPE,
+      in_brancd    IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_actype    IN       stlbas.stbrnlmt.actype%TYPE,
+      in_cuscod    IN       stlbas.stbrnlmt.cuscod%TYPE,
+      out_glblmt   OUT      stlbas.stglblmt%ROWTYPE,
+      out_brnlmt   OUT      stlbas.stbrnlmt%ROWTYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      SELECT g.*
+        INTO out_glblmt
+        FROM stlbas.stglblmt g, stlbas.stbrnlmt b
+       WHERE g.sancid = b.sancid
+         AND b.sancid = in_sancid
+         AND b.sancid = in_sancid
+         AND b.brancd = in_brancd
+         AND b.actype = in_actype
+         AND b.cuscod = in_cuscod
+         AND b.funded = 'N';
+
+      SELECT b.*
+        INTO out_brnlmt
+        FROM stlbas.stglblmt g, stlbas.stbrnlmt b
+       WHERE g.sancid = b.sancid
+         AND b.sancid = in_sancid
+         AND b.sancid = in_sancid
+         AND b.brancd = in_brancd
+         AND b.actype = in_actype
+         AND b.cuscod = in_cuscod
+         AND b.funded = 'N';
+
+      RETURN TRUE;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN TRUE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20100, 'dpk_lclimit.dfn_getreglimitdtl ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+-----------
+   FUNCTION dfn_getbtbeolreq
+      RETURN BOOLEAN
+   IS
+      v_appreq   stlbas.stcodmas.corcod%TYPE;
+   BEGIN
+      SELECT c.corcod
+        INTO v_appreq
+        FROM stlbas.stcodmas c
+       WHERE c.harcod = 'LCA' AND c.sofcod = 'BEL' AND c.actflg = 'Y';
+
+      IF v_appreq = 'Y'
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         raise_application_error (-20101,
+                                  'Parameter not setup in stcodmas ' || CHR (10)
+                                  || 'HARCOD =>LCA,SOFCOD =>BEL,ACTFLG=>Y'
+                                 );
+         RETURN FALSE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20102,
+                                     'More than one parameter setup in stcodmas '
+                                  || CHR (10)
+                                  || 'HARCOD =>LCA,SOFCOD =>BEL,ACTFLG=>Y'
+                                 );
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20103, 'dpk_lclimit.dfn_getbtbeolreq ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+-----------
+   FUNCTION dfn_limit_check_method (in_brancd IN VARCHAR2)
+      RETURN BOOLEAN
+   IS
+      v_return   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      v_return                   := dpk_lc_utility.dfn_getstcodmas_dtl (in_harcod => 'CLM', in_sofcod => in_brancd);
+
+      IF v_return.actflg = 'Y' AND v_return.sofcod IS NOT NULL
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN FALSE;
+   END;
+
+----
+   FUNCTION dfn_chk_onetime_limit (
+      in_brancd     IN   stlbas.stbrnlm1.brancd%TYPE,
+      in_actype     IN   stlbas.stbrnlm1.actype%TYPE,
+      in_cuscod     IN   stlbas.stbrnlm1.cuscod%TYPE,
+      in_lcexpdat   IN   stlbas.stbrnlm1.expdat%TYPE,
+      in_lcopndat   IN   stlbas.stbrnlm1.expdat%TYPE,
+      in_libamt     IN   stlbas.stilcmas.lcamtl%TYPE,
+      in_lmttyp     IN   VARCHAR2,
+      in_srlnum     IN   stlbas.stfacmas.srlnum%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      v_avlamt         NUMBER;
+      v_prev_bok_amt   stlbas.stilcmas.lcamtl%TYPE;
+      v_usdlmt1        stlbas.stbrnlm1.usdlmt%TYPE;
+   BEGIN
+      v_prev_bok_amt             :=
+         dpk_lclimit.dfn_get_one_booking_amt (in_brancd      => in_brancd,
+                                              in_actype      => in_actype,
+                                              in_cuscod      => in_cuscod,
+                                              in_srlnum      => in_srlnum
+                                             );
+
+      SELECT        (o.lmtamt - o.usdlmt), o.usdlmt
+               INTO v_avlamt, v_usdlmt1
+               FROM stlbas.stbrnlm1 o
+              WHERE o.brancd = in_brancd AND o.actype = in_actype AND o.cuscod = in_cuscod AND o.srlnum = in_srlnum
+      FOR UPDATE OF o.lmtamt, o.usdlmt;
+
+      IF SIGN (v_usdlmt1) = -1
+      THEN
+         raise_application_error (-20203,
+                                     ' Used limit amount ('
+                                  || TO_CHAR (v_usdlmt1)
+                                  || ') shown negative figure. '
+                                  || CHR (10)
+                                  || ' Please contact to IT. '
+                                 );
+      END IF;
+
+      IF SIGN ((v_avlamt - v_prev_bok_amt) - in_libamt) = -1
+      THEN
+         raise_application_error (-20101,
+                                     'Limit not available !!!'
+                                  || CHR (10)
+                                  || 'Avl.amt/Prv.bokamt/libamt'
+                                  || CHR (10)
+                                  || TO_CHAR (v_avlamt)
+                                  || '/'
+                                  || TO_CHAR (v_prev_bok_amt)
+                                  || '/'
+                                  || TO_CHAR (in_libamt)
+                                 );
+         RETURN FALSE;
+      ELSE
+         RETURN TRUE;
+      END IF;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20201, SQLERRM);
+   END;
+
+-----------
+   PROCEDURE dpr_update_btb_used_limit (
+      p_brancd     stlbas.stfacmas.brancd%TYPE,
+      p_actype     stlbas.stfacmas.actype%TYPE,
+      p_actnum     stlbas.stfacmas.actnum%TYPE,
+      p_oprtyp     stlbas.sttftran.oprtyp%TYPE,
+      p_oprcod     stlbas.sttftran.oprcod%TYPE,
+      p_tamtlc     stlbas.sttftran.tamtlc%TYPE,
+      p_rvamtl     stlbas.sttftran.rvamtl%TYPE,
+      p_oprstamp   stlbas.sttftran.oprstamp%TYPE,
+      p_doctyp     stlbas.sttftran.doctyp%TYPE,
+      p_docnum     stlbas.sttftran.docnum%TYPE,
+      p_sgacno     stlbas.sttftran.sgacno%TYPE,
+      p_status     stlbas.sttftran.status%TYPE
+   )
+   IS
+      v_cuscod      stlbas.stfacmas.cuscod%TYPE;
+      v_lctype      stlbas.stfacmas.regone%TYPE;
+      v_srlnum      stlbas.stfacmas.srlnum%TYPE;
+      v_rmamtl      stlbas.stilcmas.rmamtl%TYPE;
+      v_glbcod      NUMBER;
+      v_revolg      NUMBER;
+      v_lmtupdamt   stlbas.stilcmas.lcamtl%TYPE;
+      v_lmtusdlmt   NUMBER;                                                                     --stilcmas.lcamtl%TYPE;
+      v_ho_updamt   stlbas.stilcmas.lcamtl%TYPE;
+      v_ho_amount   stlbas.sttftran.tamtlc%TYPE;
+      v_rvamtl      stlbas.sttftran.rvamtl%TYPE   := p_rvamtl;
+      PRAGMA AUTONOMOUS_TRANSACTION;
+   BEGIN
+      BEGIN
+         SELECT regone, srlnum, cuscod
+           INTO v_lctype, v_srlnum, v_cuscod
+           FROM stlbas.stfacmas
+          WHERE brancd = p_brancd AND actype = p_actype AND actnum = p_actnum;
+      EXCEPTION
+         WHEN NO_DATA_FOUND
+         THEN
+            raise_application_error (-20401,
+                                        'LC Not  exist.  '
+                                     || CHR (10)
+                                     || 'Customer Id : '
+                                     || v_cuscod
+                                     || CHR (10)
+                                     || 'L/C Booking Number : '
+                                     || p_actnum
+                                    );
+         WHEN TOO_MANY_ROWS
+         THEN
+            raise_application_error (-20402,
+                                        'More than one L/C exist.  '
+                                     || CHR (10)
+                                     || 'Customer Id : '
+                                     || v_cuscod
+                                     || CHR (10)
+                                     || 'L/C Booking Number : '
+                                     || p_actnum
+                                    );
+         WHEN OTHERS
+         THEN
+            raise_application_error (-20403,
+                                        'dpr_update_btb_used_limit :'
+                                     || CHR (10)
+                                     || 'L/C Booking Number : '
+                                     || p_actnum
+                                     || CHR (10)
+                                     || SQLERRM
+                                    );
+      END;
+
+      IF v_lctype = 'R' OR v_lctype IS NULL
+      THEN
+         SELECT COUNT (*)
+           INTO v_glbcod
+           FROM stlbas.stbrnlmt
+          WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+
+         SELECT COUNT (*)
+           INTO v_revolg
+           FROM stlbas.stbrnlmt
+          WHERE brancd = p_brancd AND actype = p_actype AND revolg = 'Y' AND cuscod = v_cuscod;
+
+         BEGIN
+            SELECT NVL (ltramt, 0) - NVL (crsval, 0)
+              INTO v_ho_amount
+              FROM stlbas.stfacma2
+             WHERE brancd = p_brancd AND actype = p_actype AND actnum = p_actnum;
+         EXCEPTION
+            WHEN NO_DATA_FOUND
+            THEN
+               v_ho_amount                := 0;
+            WHEN OTHERS
+            THEN
+               raise_application_error (-20404,
+                                           'dpr_update_btb_used_limit :'
+                                        || 'HO Approved amount of this LC('
+                                        || p_actnum
+                                        || ') is not found, please inform IT.'
+                                       );
+         END;
+
+         BEGIN
+            SELECT NVL (rmamtl, 0)
+              INTO v_rmamtl
+              FROM stlbas.stilcmas
+             WHERE brancd = p_brancd AND actype = p_actype AND actnum = p_actnum;
+
+            IF p_oprtyp = 'ISS' AND (p_oprcod = 'LBA' OR p_oprcod = 'LDF' OR p_oprcod = 'LBC')
+            THEN                                                                                                -- ISSUE
+               v_lmtupdamt                := ROUND (p_tamtlc) - v_ho_amount;
+            ELSIF p_oprtyp = 'AMD' AND (p_oprcod = 'LBA' OR p_oprcod = 'AMC')
+            THEN                                                                                            -- Amendment
+               v_lmtupdamt                := ROUND (v_rmamtl + p_tamtlc);
+               v_lmtupdamt                := ABS (v_rmamtl - v_lmtupdamt);
+            ELSIF p_oprtyp = 'RAD' AND p_oprcod = 'DEB'
+            THEN                                                                                            -- Lodgement
+               SELECT a.rvamtl
+                 INTO v_rvamtl
+                 FROM stlbas.sttftran a
+                WHERE a.brancd = p_brancd
+                  AND a.actype = p_actype
+                  AND a.actnum = p_actnum
+                  AND a.sgacno = p_sgacno
+                  AND a.status = 'I';
+
+               v_rmamtl                   := v_rmamtl + v_rvamtl;
+               v_lmtusdlmt                := v_rmamtl - v_ho_amount;
+
+               IF SIGN (v_lmtusdlmt) = 1
+               THEN
+                  IF p_rvamtl > v_lmtusdlmt
+                  THEN
+                     v_lmtupdamt                := v_lmtusdlmt;
+                     v_ho_updamt                := v_rvamtl - v_lmtupdamt;
+                  ELSE
+                     v_lmtupdamt                := v_rvamtl;
+                     v_ho_updamt                := 0;
+                  END IF;
+               ELSE
+                  v_ho_updamt                := v_rvamtl;
+               END IF;
+            ELSIF p_oprtyp IN ('CAN', 'CLS')
+            THEN                                                                                         -- Cancel Close
+               v_lmtusdlmt                := v_rmamtl - v_ho_amount;
+
+               IF SIGN (v_lmtusdlmt) = 1
+               THEN
+                  IF p_rvamtl > v_lmtusdlmt
+                  THEN
+                     v_lmtupdamt                := v_lmtusdlmt;
+                     v_ho_updamt                := v_rvamtl - v_lmtupdamt;
+                  ELSE
+                     v_lmtupdamt                := v_rvamtl;
+                     v_ho_updamt                := 0;
+                  END IF;
+               ELSE
+                  v_ho_updamt                := v_rvamtl;
+               END IF;
+            ELSIF p_oprtyp IN ('ISS', 'AMD', 'ACP') AND NVL (p_status, 'R432142#dsfsdfs') = 'R'
+            THEN
+               v_lmtupdamt                := v_rvamtl;
+            END IF;
+         EXCEPTION
+            WHEN NO_DATA_FOUND
+            THEN
+               raise_application_error (-20405, 'LC Remaining amount of this LC(' || p_actnum || ') is not found ');
+            WHEN TOO_MANY_ROWS
+            THEN
+               raise_application_error (-20406, 'More than one same L/C exists ...' || p_actnum);
+            WHEN OTHERS
+            THEN
+               raise_application_error (-20407,
+                                           v_rmamtl
+                                        || ' LC Remaining amount of this LC( '
+                                        || p_actnum
+                                        || '  '
+                                        || v_lmtusdlmt
+                                        || '  '
+                                        || v_rmamtl
+                                        || ' ) is not found, please inform IT.'
+                                        || SQLERRM
+                                       );
+         END;
+      ELSIF v_lctype = 'O'
+      THEN
+         SELECT COUNT (brancd)
+           INTO v_glbcod
+           FROM stlbas.stbrnlm1
+          WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod AND srlnum = v_srlnum;
+      END IF;
+
+      IF (v_lctype = 'R' OR v_lctype IS NULL) AND v_glbcod > 0
+      THEN
+         ----------------------  Requler  BTB Limit  Updating ----------------------------------------
+         IF p_oprtyp = 'ISS' AND (p_oprcod = 'LBA' OR p_oprcod = 'LDF' OR p_oprcod = 'LBC')
+         THEN                                                                                         --- BTB L/c Issue
+            IF SIGN (v_lmtupdamt) = 1
+            THEN
+               UPDATE stlbas.stbrnlmt
+                  SET usdlmt = NVL (usdlmt, 0) + v_lmtupdamt
+                WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+            END IF;
+         -- check DML
+         ELSIF p_oprtyp = 'AMD' AND (p_oprcod = 'LBA' OR p_oprcod = 'AMC') AND p_tamtlc > 0
+         THEN                                                                                       -- Postive Amendment
+            UPDATE stlbas.stbrnlmt
+               SET usdlmt = NVL (usdlmt, 0) + v_lmtupdamt
+             WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+         ELSIF p_oprtyp = 'AMD' AND (p_oprcod = 'LBA' OR p_oprcod = 'AMC') AND p_tamtlc < 0
+         THEN                                                                                      -- Negative Amendment
+            IF SIGN (v_lmtupdamt) = 1
+            THEN
+               UPDATE stlbas.stbrnlmt
+                  SET usdlmt = NVL (usdlmt, 0) - v_lmtupdamt
+                WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+
+               -- check DML
+               IF SQL%NOTFOUND
+               THEN
+                  raise_application_error (-20411, 'Credit Line Limit Not Updated,Please Check...');
+               END IF;
+            END IF;
+
+            IF SIGN (v_ho_updamt) = 1
+            THEN
+               UPDATE stlbas.stfacma2
+                  SET crsval = NVL (crsval, 0) + v_ho_updamt
+                WHERE brancd = p_brancd AND actype = p_actype AND actnum = p_actype;
+
+               IF SQL%ROWCOUNT = 0
+               THEN
+                  raise_application_error (-20412, 'credit Line Limit Not Updated,Please Check...');
+               END IF;
+            END IF;
+         ELSIF p_oprtyp = 'RAD' AND p_oprcod = 'DEB' AND v_revolg > 0
+         THEN                                                                                                -- Lodgment
+            IF SIGN (v_lmtupdamt) = 1
+            THEN
+               UPDATE stlbas.stbrnlmt
+                  SET usdlmt = NVL (usdlmt, 0) - v_lmtupdamt
+                WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+
+               IF SQL%NOTFOUND
+               THEN
+                  raise_application_error (-20414,
+                                              'Credit Line Limit Not Updated,Please Check...'
+                                           || CHR (10)
+                                           || p_brancd
+                                           || ' , '
+                                           || p_actype
+                                           || ' , '
+                                           || v_cuscod
+                                          );
+               END IF;
+            END IF;
+         ELSIF p_oprtyp = 'CAN' AND p_oprcod = 'CRE' AND v_revolg > 0
+         THEN                                                                                            -- Cancel Close
+            IF SIGN (v_lmtupdamt) = 1
+            THEN
+               UPDATE stlbas.stbrnlmt
+                  SET usdlmt = NVL (usdlmt, 0) - v_lmtupdamt
+                WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+
+               -- check DML
+               IF SQL%NOTFOUND
+               THEN
+                  raise_application_error (-20417, 'Credit Line Limit Not Updated,Please Check...');
+               END IF;
+            END IF;
+
+            IF SIGN (v_ho_updamt) = 1
+            THEN
+               UPDATE stlbas.stfacma2
+                  SET crsval = NVL (crsval, 0) + v_ho_updamt
+                WHERE brancd = p_brancd AND actype = p_actype AND actnum = p_actnum;
+
+               IF SQL%ROWCOUNT = 0
+               THEN
+                  raise_application_error (-20418, 'credit Line Limit Not Updated,Please Check...');
+               END IF;
+            END IF;
+         ELSIF p_oprtyp IN ('ISS', 'AMD', 'ACP') AND NVL (p_status, 'R432142#dsfsdfs') = 'R' -- For reverse
+         THEN
+            UPDATE stlbas.stbrnlmt
+               SET usdlmt = NVL (usdlmt, 0) - v_lmtupdamt
+             WHERE brancd = p_brancd AND actype = p_actype AND cuscod = v_cuscod;
+         END IF;
+      ----------------------  Onetime  BTB Limit  Updating ----------------------------------------
+      ELSIF     v_lctype = 'O'
+            AND v_glbcod > 0
+            AND (   (p_oprtyp = 'ISS' AND p_oprcod = 'LBA')                                                     -- Issue
+                 OR (p_oprtyp = 'ISS' AND p_oprcod = 'LBC')                                                     -- Issue
+                 OR (p_oprtyp = 'ISS' AND p_oprcod = 'LDF')                                                     -- Issue
+                 OR (p_oprtyp = 'AMD' AND p_oprcod = 'LBA')
+                 OR (p_oprtyp = 'AMD' AND p_oprcod = 'AMC')                                                 -- amendment
+                )
+      THEN
+         dpr_update_onetime_used_liold (p_brancd, p_actype, v_cuscod, '+', p_tamtlc, v_srlnum, p_oprstamp);
+         NULL;
+      END IF;
+
+      COMMIT;
+   END;
+
+----
+   PROCEDURE dpr_update_onetime_used_liold (
+      in_brancd     VARCHAR2,
+      in_actype     VARCHAR2,
+      in_cuscod     VARCHAR2,
+      in_sign       VARCHAR2 DEFAULT '+',
+      in_updamt     NUMBER,
+      in_srlnum     NUMBER,
+      in_oprstamp   VARCHAR2
+   )
+   IS
+   BEGIN
+      IF in_sign = '+'
+      THEN
+         UPDATE stlbas.stbrnlm1
+            SET usdlmt = NVL (usdlmt, 0) + NVL (in_updamt, 0),
+                oprstamp = in_oprstamp
+          WHERE brancd = in_brancd AND cuscod = in_cuscod AND actype = in_actype AND srlnum = in_srlnum;
+      ELSIF in_sign = '-'
+      THEN
+         UPDATE stlbas.stbrnlm1
+            SET usdlmt = NVL (usdlmt, 0) - NVL (in_updamt, 0),
+                oprstamp = in_oprstamp
+          WHERE brancd = in_brancd AND cuscod = in_cuscod AND actype = in_actype AND srlnum = in_srlnum;
+      END IF;
+   END;
+
+----
+   FUNCTION dfn_insert_stglobal_limit_log (
+      p_actnum     stlbas.sttftran.actnum%TYPE,
+      p_doctyp     stlbas.sttftran.doctyp%TYPE,
+      p_docnum     stlbas.sttftran.docnum%TYPE,
+      p_updt_amt   NUMBER,
+      p_sign       VARCHAR2,
+      p_oprstamp   stlbas.sttftran.oprstamp%TYPE,
+      p_brancd     stlbas.sttftran.brancd%TYPE,
+      p_actype     stlbas.sttftran.actype%TYPE,
+      p_cuscod     stlbas.stcusmas.cuscod%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      CURSOR c1
+      IS
+         SELECT 'dbt_sttftran_hocred' update_from, ROWID row_id, brancd, actype, p_actnum actnum, p_doctyp doctyp,
+                p_docnum docnum, sancid, cuscod, '' srlnum, (p_updt_amt) updamt, '-' operator_sign, lmtamt,
+                usdlmt old_usdlmt, (NVL (usdlmt, 0) - p_updt_amt) new_usdlmt, '05' naration, p_oprstamp oprstamp,
+                SYSDATE timstamp
+           FROM stlbas.stbrnlmt
+          WHERE brancd = p_brancd AND actype = p_actype AND cuscod = p_cuscod;
+   BEGIN
+      FOR i IN c1
+      LOOP
+         INSERT INTO stlbas.stglobal_limit_log
+                     (update_from, row_id, brancd, actype, doctyp, docnum, actnum, sancid, cuscod,
+                      srlnum, updamt, operator_sign, lmtamt, old_usdlmt, new_usdlmt, naration,
+                      oprstamp, timstamp
+                     )
+              VALUES (i.update_from, i.row_id, i.brancd, i.actype, i.doctyp, i.docnum, i.actnum, i.sancid, i.cuscod,
+                      i.srlnum, i.updamt, i.operator_sign, i.lmtamt, i.old_usdlmt, i.new_usdlmt, i.naration,
+                      i.oprstamp, i.timstamp
+                     );
+      END LOOP;
+
+      IF SQL%FOUND
+      THEN
+         RETURN TRUE;
+      ELSE
+         raise_application_error (-20401, 'Credit Line Limit Log Not Updated,Please Check...');
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20402, 'Generate From dfn_insert_stglobal_limit_log ... ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+
+   PROCEDURE dpr_total_fnnfn_limit (
+      in_brancd               IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_sancid               IN       stlbas.stbrnlmt.sancid%TYPE,
+      out_funded_usedlmt      OUT      NUMBER,
+      out_nonfunded_usedlmt   OUT      NUMBER
+   )
+   IS
+   BEGIN
+      SELECT NVL (SUM (DECODE (a.funded, 'Y', NVL (a.usdlmt, 0), 0)), 0) funded_limit,
+             NVL (SUM (DECODE (a.funded, 'N', NVL (a.usdlmt, 0), 0)), 0) funded_limit
+        INTO out_funded_usedlmt,
+             out_nonfunded_usedlmt
+        FROM stlbas.stbrnlmt a
+       WHERE a.brancd = in_brancd AND a.sancid = in_sancid;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         out_funded_usedlmt         := 0;
+         out_nonfunded_usedlmt      := 0;
+      WHEN TOO_MANY_ROWS
+      THEN
+         out_funded_usedlmt         := 0;
+         out_nonfunded_usedlmt      := 0;
+      WHEN OTHERS
+      THEN
+         out_funded_usedlmt         := 0;
+         out_nonfunded_usedlmt      := 0;
+   END;
+
+   FUNCTION dfn_tfusdlmt (in_brancd IN stlbas.stbrnlmt.brancd%TYPE, in_sancid IN stlbas.stbrnlmt.sancid%TYPE)
+      RETURN NUMBER
+   IS
+      v_funded_used_limit    NUMBER;
+      v_nfunded_used_limit   NUMBER;
+   BEGIN
+      stlbas.dpk_lclimit.dpr_total_fnnfn_limit (in_brancd                  => in_brancd,
+                                                in_sancid                  => in_sancid,
+                                                out_funded_usedlmt         => v_funded_used_limit,
+                                                out_nonfunded_usedlmt      => v_nfunded_used_limit
+                                               );
+      RETURN v_funded_used_limit;
+   END;
+
+   FUNCTION dfn_tnfusdlmt (in_brancd IN stlbas.stbrnlmt.brancd%TYPE, in_sancid IN stlbas.stbrnlmt.sancid%TYPE)
+      RETURN NUMBER
+   IS
+      v_funded_used_limit    NUMBER;
+      v_nfunded_used_limit   NUMBER;
+   BEGIN
+      stlbas.dpk_lclimit.dpr_total_fnnfn_limit (in_brancd                  => in_brancd,
+                                                in_sancid                  => in_sancid,
+                                                out_funded_usedlmt         => v_funded_used_limit,
+                                                out_nonfunded_usedlmt      => v_nfunded_used_limit
+                                               );
+      RETURN v_nfunded_used_limit;
+   END;
+
+----------------
+   FUNCTION dfn_limit_check_method (in_brancd IN VARCHAR2, in_actype IN VARCHAR2)
+      RETURN BOOLEAN
+   IS
+      v_return   stlbas.stcodmas%ROWTYPE;
+   BEGIN
+      v_return                   := dpk_lc_utility.dfn_getstcodmas_dtl (in_harcod      => in_brancd,
+                                                                        in_sofcod      => in_actype);
+
+      IF v_return.actflg = 'Y'
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         RETURN FALSE;
+   END;
+
+----------------
+   FUNCTION dfn_chk_limit_date (in_sofcod IN stlbas.stcodmas.sofcod%TYPE)
+      RETURN BOOLEAN
+   IS
+      v_corcod   stlbas.stcodmas.corcod%TYPE;
+   BEGIN
+      SELECT c.corcod
+        INTO v_corcod
+        FROM stlbas.stcodmas c
+       WHERE c.harcod =
+                (SELECT b.sofcod
+                   FROM stlbas.stcodmas b
+                  WHERE b.harcod = (SELECT a.sofcod
+                                      FROM stlbas.stcodmas a
+                                     WHERE a.harcod = '***' AND a.actflg = 'Y' AND a.corcod = 'Y')
+                    AND b.actflg = 'Y'
+                    AND b.corcod = 'Y')
+         AND c.sofcod = in_sofcod
+         AND c.actflg = 'Y'
+         AND c.corcod = 'Y';
+
+      IF v_corcod = 'Y'
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   EXCEPTION
+      WHEN NO_DATA_FOUND
+      THEN
+         RETURN FALSE;
+      WHEN TOO_MANY_ROWS
+      THEN
+         raise_application_error (-20100,
+                                     'Multiple record exist in stcodmas table.'
+                                  || CHR (10)
+                                  || 'Harcod: COL and sofcod : 002'
+                                  || ' Contact to IT Dept. '
+                                 );
+         RETURN FALSE;
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20101, 'Generate from  dfn_chk_reglmt_expdat: ' || CHR (10) || SQLERRM);
+         RETURN FALSE;
+   END;
+END;
+/
