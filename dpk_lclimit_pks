@@ -1,0 +1,173 @@
+CREATE OR REPLACE PACKAGE STLBAS.dpk_lclimit
+IS
+   FUNCTION dfn_getbooking_amt (
+      in_brancd         IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype         IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod         IN       stlbas.stfacmas.cuscod%TYPE,
+      out_regl_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_onel_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_get_reg_booking_amt (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      out_bokamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_get_one_booking_amt (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE,
+      in_srlnum   IN   stlbas.stfacmas.srlnum%TYPE
+   )
+      RETURN stlbas.stilcmas.lcamtl%TYPE;
+
+   FUNCTION dfn_get_actype_limit_amt (
+      in_actype    IN       stlbas.stlondoc.actype%TYPE,
+      out_limamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_get_current_loan_amt (
+      in_cuscod      IN       stlbas.stfacmas.cuscod%TYPE,
+      out_tloanamt   OUT      stlbas.stilcmas.lcamtl%TYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_chk_reglmt_expdat
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_chk_custcode (in_cuscod IN stlbas.stfacmas.cuscod%TYPE)
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_get_total_usedlmt (
+      in_brancd    IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_sancid    IN       stlbas.stbrnlmt.sancid%TYPE,
+      out_usdlmt   OUT      stlbas.stbrnlmt.usdlmt%TYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dpr_chk_regular_limit (
+      in_brancd     IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_actype     IN       stlbas.stbrnlmt.actype%TYPE,
+      in_cuscod     IN       stlbas.stbrnlmt.cuscod%TYPE,
+      in_lcexpdat   IN       stlbas.stbrnlmt.expdat%TYPE,
+      in_lcopndat   IN       stlbas.stbrnlmt.expdat%TYPE,
+      in_libamt     IN       stlbas.stilcmas.lcamtl%TYPE,
+      in_lmttyp     IN       VARCHAR2,
+      out_lcappv    OUT      VARCHAR2,
+      out_sancid    OUT      stlbas.stglblmt.sancid%TYPE,
+      out_bokamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_lonamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_avllmt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_lmtamt    OUT      stlbas.stilcmas.lcamtl%TYPE,
+      out_exclmt    OUT      NUMBER,
+      out_msg       OUT      VARCHAR2
+   )
+      RETURN BOOLEAN;
+
+   PROCEDURE dfn_getbooking_dtl (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      in_lmttyp    IN       VARCHAR2,
+      out_bokdtl   OUT      sys_refcursor
+   );
+
+   FUNCTION dfn_getexcovrlmt (
+      in_brancd    IN       stlbas.stilcmas.brancd%TYPE,
+      in_actype    IN       stlbas.stilcmas.actype%TYPE,
+      in_cuscod    IN       stlbas.stfacmas.cuscod%TYPE,
+      out_sumamt   OUT      NUMBER
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_getreglimitdtl (
+      in_sancid    IN       stlbas.stglblmt.sancid%TYPE,
+      in_brancd    IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_actype    IN       stlbas.stbrnlmt.actype%TYPE,
+      in_cuscod    IN       stlbas.stbrnlmt.cuscod%TYPE,
+      out_glblmt   OUT      stlbas.stglblmt%ROWTYPE,
+      out_brnlmt   OUT      stlbas.stbrnlmt%ROWTYPE
+   )
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_getbtbeolreq
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_limit_check_method (in_brancd IN VARCHAR2)
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_chk_onetime_limit (
+      in_brancd     IN   stlbas.stbrnlm1.brancd%TYPE,
+      in_actype     IN   stlbas.stbrnlm1.actype%TYPE,
+      in_cuscod     IN   stlbas.stbrnlm1.cuscod%TYPE,
+      in_lcexpdat   IN   stlbas.stbrnlm1.expdat%TYPE,
+      in_lcopndat   IN   stlbas.stbrnlm1.expdat%TYPE,
+      in_libamt     IN   stlbas.stilcmas.lcamtl%TYPE,
+      in_lmttyp     IN   VARCHAR2,
+      in_srlnum     IN   stlbas.stfacmas.srlnum%TYPE
+   )
+      RETURN BOOLEAN;
+
+   PROCEDURE dpr_update_btb_used_limit (
+      p_brancd     stlbas.stfacmas.brancd%TYPE,
+      p_actype     stlbas.stfacmas.actype%TYPE,
+      p_actnum     stlbas.stfacmas.actnum%TYPE,
+      p_oprtyp     stlbas.sttftran.oprtyp%TYPE,
+      p_oprcod     stlbas.sttftran.oprcod%TYPE,
+      p_tamtlc     stlbas.sttftran.tamtlc%TYPE,
+      p_rvamtl     stlbas.sttftran.rvamtl%TYPE,
+      p_oprstamp   stlbas.sttftran.oprstamp%TYPE,
+      p_doctyp     stlbas.sttftran.doctyp%TYPE,
+      p_docnum     stlbas.sttftran.docnum%TYPE,
+      p_sgacno     stlbas.sttftran.sgacno%TYPE,
+      p_status     stlbas.sttftran.status%TYPE
+   );
+
+   PROCEDURE dpr_update_onetime_used_liold (
+      in_brancd     VARCHAR2,
+      in_actype     VARCHAR2,
+      in_cuscod     VARCHAR2,
+      in_sign       VARCHAR2 DEFAULT '+',
+      in_updamt     NUMBER,
+      in_srlnum     NUMBER,
+      in_oprstamp   VARCHAR2
+   );
+
+   FUNCTION dfn_insert_stglobal_limit_log (
+      p_actnum     stlbas.sttftran.actnum%TYPE,
+      p_doctyp     stlbas.sttftran.doctyp%TYPE,
+      p_docnum     stlbas.sttftran.docnum%TYPE,
+      p_updt_amt   NUMBER,
+      p_sign       VARCHAR2,
+      p_oprstamp   stlbas.sttftran.oprstamp%TYPE,
+      p_brancd     stlbas.sttftran.brancd%TYPE,
+      p_actype     stlbas.sttftran.actype%TYPE,
+      p_cuscod     stlbas.stcusmas.cuscod%TYPE
+   )
+      RETURN BOOLEAN;
+
+   PROCEDURE dpr_total_fnnfn_limit (
+      in_brancd               IN       stlbas.stbrnlmt.brancd%TYPE,
+      in_sancid               IN       stlbas.stbrnlmt.sancid%TYPE,
+      out_funded_usedlmt      OUT      NUMBER,
+      out_nonfunded_usedlmt   OUT      NUMBER
+   );
+
+   FUNCTION dfn_tfusdlmt (in_brancd IN stlbas.stbrnlmt.brancd%TYPE, in_sancid IN stlbas.stbrnlmt.sancid%TYPE)
+      RETURN NUMBER;
+
+   FUNCTION dfn_tnfusdlmt (in_brancd IN stlbas.stbrnlmt.brancd%TYPE, in_sancid IN stlbas.stbrnlmt.sancid%TYPE)
+      RETURN NUMBER;
+
+   FUNCTION dfn_limit_check_method (in_brancd IN VARCHAR2, in_actype IN VARCHAR2)
+      RETURN BOOLEAN;
+
+   FUNCTION dfn_chk_limit_date (in_sofcod IN stlbas.stcodmas.sofcod%TYPE)
+      RETURN BOOLEAN;
+END;
+/
