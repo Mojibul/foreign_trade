@@ -1,0 +1,261 @@
+CREATE OR REPLACE PACKAGE STLBAS.dpk_lc_utility
+/*
+ Purpose        : General package for foreign trade
+ Created by     : MOJIBUL HOQUE
+ Created Date   : 15/07/2012
+ Version        : Ver_0001
+*/
+IS
+-- Constant variable
+   groupcode   CONSTANT stlbas.stchrtac.grupcode%TYPE   := '001';
+   fcheadcode   CONSTANT stlbas.stchrtac.headcode%TYPE   := '14000';
+
+   -- Group Code ex. 001 for conventional 002 for islamic
+
+   -- Get LC tolerance percentage
+   FUNCTION dfn_gettolpct (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN stlbas.stilcmas.tolpct%TYPE;
+
+-- Get user branch code
+   FUNCTION dfn_usrbrn (
+      in_usercode   IN       stlbas.syusrmas.usercode%TYPE,
+      out_brancd    OUT      VARCHAR2
+   )
+      RETURN BOOLEAN;
+
+-- Get account title
+   FUNCTION dfn_getacttit (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN stlbas.stfacmas.acttit%TYPE;
+
+-- get stilcmas detail
+   FUNCTION dfn_getilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN stlbas.stilcmas%ROWTYPE;
+
+   -- get user name
+   FUNCTION dnf_getusername (in_usercode IN stlbas.syusrmas.usercode%TYPE)
+      RETURN stlbas.syusrmas.username%TYPE;
+
+   -- get stcodmas detail
+   FUNCTION dfn_getstcodmas_dtl (
+      in_harcod   IN   stlbas.stcodmas.harcod%TYPE,
+      in_sofcod   IN   stlbas.stcodmas.sofcod%TYPE
+   )
+      RETURN stlbas.stcodmas%ROWTYPE;
+
+   -- get tolarance  percantage checking
+   FUNCTION dfn_tolerance_checking
+      RETURN BOOLEAN;
+
+   -- chec acceptance amount with tolerance
+   FUNCTION dfn_chk_acceptance_amt (
+      in_acpamt   IN   stlbas.stilcmas.acpamt%TYPE,
+      in_lcamtf   IN   stlbas.stilcmas.lcamtf%TYPE,
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE
+   )
+      RETURN BOOLEAN;
+
+   -- calculate  parcentage amount
+   FUNCTION dfn_get_percentage_amt (
+      in_amount       IN   NUMBER,
+      in_percentage   IN   NUMBER
+   )
+      RETURN NUMBER;
+
+   -- get lc number base on transaction number
+   FUNCTION dfn_get_lcnumber (in_refdocno IN stlbas.sttrndtl.refdocno%TYPE)
+      RETURN stlbas.stilcmas.lcnumb%TYPE;
+
+   -- get corporate office or Head office  code
+   FUNCTION dfn_get_headoffice_id
+      RETURN stlbas.stcodmas.sofcod%TYPE;
+
+   -- Get outstanding lc amount from GL
+   FUNCTION dfn_get_lc_outstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get outstanding ABP  from GL
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get glccode  from stfoprcd
+   FUNCTION dfn_get_glcode (
+      in_brancd   IN   stlbas.stfoprcd.brancd%TYPE,
+      in_trntyp   IN   stlbas.stfoprcd.trntyp%TYPE,
+      in_oprcod   IN   stlbas.stfoprcd.oprcod%TYPE,
+      in_curcde   IN   stlbas.stfoprcd.curcde%TYPE
+   )
+      RETURN stlbas.stfoprcd.glcode%TYPE;
+
+   -- Verify that provided gl code are entry in chart of Account
+   FUNCTION dfn_verify_glcode (in_acctcode IN stlbas.stchrtac.acctcode%TYPE)
+      RETURN BOOLEAN;
+
+   -- Get outstanding lc amount from LC related table
+   FUNCTION dfn_get_lc_outstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get outstanding ABP  from LC realated table
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get LC outstanding (LC + ABP) amount
+   FUNCTION dfn_getlctotaloutstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_cuscod   IN   stlbas.stfacmas.cuscod%TYPE
+   )
+      RETURN NUMBER;
+
+   -- get stilcmas detail base on branch code and lcnumber
+   FUNCTION dfn_getilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_lcnumb   IN   stlbas.stilcmas.lcnumb%TYPE
+   )
+      RETURN stlbas.stilcmas%ROWTYPE;
+
+   -- get ft_code_detail
+   FUNCTION dfn_getft_code_detail (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_oprcod     IN   stlbas.ft_code_detail.oprcod%TYPE
+   )
+      RETURN stlbas.ft_code_detail%ROWTYPE;
+
+   -- get ft_code_detail
+   FUNCTION dfn_getft_code_detail (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_debcre     IN   stlbas.ft_code_detail.debcre%TYPE
+   )
+      RETURN stlbas.ft_code_detail%ROWTYPE;
+
+   -- GET LC liability glcode from ft_code_detail
+   FUNCTION dfn_getlclib_glcode (
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE,
+      in_debcre     IN   stlbas.ft_code_detail.debcre%TYPE
+   )
+      RETURN stlbas.ft_code_detail.glcode%TYPE;
+
+   -- Get outstanding Shipping Guarantee from GL
+   FUNCTION dfn_get_outstanding_shg (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get outstanding ABP  from GL
+   FUNCTION dfn_get_outstanding_shg (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE,
+      in_sgacno   IN   stlbas.sttftran.sgacno%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get outstanding ABP  from GL
+   FUNCTION dfn_get_outstanding_abp (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE,
+      in_sgacno   IN   stlbas.sttftran.sgacno%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get LC outstanding (LC + ABP) amount
+   FUNCTION dfn_getlctotaloutstanding (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+
+   -- Get LC outstanding lc margin
+   FUNCTION dfn_get_outstanding_margin (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+
+   FUNCTION dfn_get_abp_margin (
+      in_brancd   IN   stlbas.stfacmas.brancd%TYPE,
+      in_actype   IN   stlbas.stfacmas.actype%TYPE,
+      in_actnum   IN   stlbas.stfacmas.actnum%TYPE
+   )
+      RETURN NUMBER;
+   -- get Ac type wise gl code
+   FUNCTION dfn_get_glcode (
+      in_brancd   IN   stlbas.stfaccur.brancd%TYPE,
+      in_actype   IN   stlbas.stfaccur.actype%TYPE,
+      in_curcde   IN   stlbas.stfaccur.curcde%TYPE,
+      in_date     IN   stlbas.stfaccur.effdat%TYPE
+   )
+      RETURN stlbas.stfaccur.glcode%TYPE;
+
+   FUNCTION dfn_getcode_desc (in_harcod IN stlbas.stcodmas.harcod%TYPE, in_sofcod IN stlbas.stcodmas.sofcod%TYPE)
+      RETURN VARCHAR2;
+
+   FUNCTION dfn_get_dummy_ac (in_brancd IN stlbas.stfacmas.brancd%TYPE, in_curcde IN stlbas.stfacmas.curcde%TYPE)
+      RETURN stlbas.stfacmas.actnum%TYPE;
+
+   FUNCTION dfn_get_glcode (
+      in_grupcode   IN   stlbas.stchrtac.grupcode%TYPE,
+      in_headcode   IN   stlbas.stchrtac.headcode%TYPE,
+      in_brancd     IN   stlbas.stchrtac.brancd%TYPE,
+      in_curcde     IN   stlbas.stchrtac.curcde%TYPE
+   )
+      RETURN stlbas.stchrtac.acctcode%TYPE;
+
+   FUNCTION dfn_get_branch_fc_glcode (
+      in_brancd   IN   stlbas.stchrtac.brancd%TYPE,
+      in_curcde   IN   stlbas.stchrtac.curcde%TYPE
+   )
+      RETURN stlbas.stchrtac.acctcode%TYPE;
+      
+   -- get user user id 
+   FUNCTION  dfn_get_cuscod (
+   in_brancd in stlbas.stilcmas.brancd%TYPE,
+   in_actype in stlbas.stilcmas.actype%TYPE,
+   in_actnum in stlbas.stilcmas.actnum%TYPE
+   )
+   RETURN stlbas.stfacmas.cuscod%TYPE;
+   -- get branch  calculation currency 
+   
+   FUNCTION dfn_branch_calcurrency(
+   in_cacmpcde stlbas.syparmas.cacmpcde%TYPE
+   )RETURN stlbas.syparmas.calcrcde%TYPE;
+ 
+END;
+/
