@@ -1,0 +1,757 @@
+CREATE OR REPLACE PACKAGE BODY STLBAS.dpk_lc_dml
+IS
+   FUNCTION dfn_insert_sttftran (in_rec IN stlbas.sttftran%ROWTYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      INSERT INTO stlbas.sttftran
+           VALUES in_rec;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+-------------------------------------------------------------------
+   FUNCTION dfn_dml_check
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      IF SQL%FOUND
+      THEN
+         RETURN TRUE;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   END;
+
+-------------------------------------------------------------------
+   FUNCTION dfn_insert_sttftran (
+      in_brancd     IN   stlbas.sttftran.brancd%TYPE,
+      in_doctyp     IN   stlbas.sttftran.doctyp%TYPE,
+      in_docnum     IN   stlbas.sttftran.docnum%TYPE,
+      in_sernum     IN   stlbas.sttftran.sernum%TYPE,
+      in_docdat     IN   stlbas.sttftran.docdat%TYPE,
+      in_valdat     IN   stlbas.sttftran.valdat%TYPE,
+      in_oprcod     IN   stlbas.sttftran.oprcod%TYPE,
+      in_actype     IN   stlbas.sttftran.actype%TYPE,
+      in_actnum     IN   stlbas.sttftran.actnum%TYPE,
+      in_curcde     IN   stlbas.sttftran.curcde%TYPE,
+      in_exrate     IN   stlbas.sttftran.exrate%TYPE,
+      in_issset     IN   stlbas.sttftran.issset%TYPE,
+      in_oprtyp     IN   stlbas.sttftran.oprtyp%TYPE,
+      in_tamtfc     IN   stlbas.sttftran.tamtfc%TYPE,
+      in_tamtlc     IN   stlbas.sttftran.tamtlc%TYPE,
+      in_oprstamp   IN   stlbas.sttftran.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.sttftran.timstamp%TYPE,
+      in_status     IN   stlbas.sttftran.status%TYPE,
+      in_rvamtf     IN   stlbas.sttftran.rvamtf%TYPE,
+      in_rvamtl     IN   stlbas.sttftran.rvamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.sttftran%ROWTYPE;
+   BEGIN
+      -- Initialize
+      in_rec.brancd := in_brancd;
+      in_rec.doctyp := in_doctyp;
+      in_rec.docnum := in_docnum;
+      in_rec.sernum := in_sernum;
+      in_rec.docdat := in_docdat;
+      in_rec.valdat := in_valdat;
+      in_rec.oprcod := in_oprcod;
+      in_rec.actype := in_actype;
+      in_rec.actnum := in_actnum;
+      in_rec.curcde := in_curcde;
+      in_rec.exrate := in_exrate;
+      in_rec.issset := in_issset;
+      in_rec.oprtyp := in_oprtyp;
+      in_rec.tamtfc := in_tamtfc;
+      in_rec.tamtlc := in_tamtlc;
+      in_rec.chgsfc := NULL;
+      in_rec.chgslc := NULL;
+      in_rec.mgnper := 0;
+      in_rec.mgamtf := NULL;
+      in_rec.mgamtl := NULL;
+      in_rec.seamtf := NULL;
+      in_rec.seamtl := NULL;
+      in_rec.caamtf := NULL;
+      in_rec.caamtl := NULL;
+      in_rec.corbkg := NULL;
+      in_rec.conbkg := NULL;
+      in_rec.oprstamp := in_oprstamp;
+      in_rec.timstamp := in_timstamp;
+      in_rec.shgrbn := NULL;
+      in_rec.btrano := NULL;
+      in_rec.btradt := NULL;
+      in_rec.invnum := NULL;
+      in_rec.invdat := NULL;
+      in_rec.crfnum := NULL;
+      in_rec.crfdat := NULL;
+      in_rec.status := in_status;
+      in_rec.sgacno := NULL;
+      in_rec.dffrom := NULL;
+      in_rec.mardsh := NULL;
+      in_rec.amdnum := NULL;
+      in_rec.liakib := NULL;
+      in_rec.markib := NULL;
+      in_rec.rvamtf := in_rvamtf;
+      in_rec.rvamtl := in_rvamtl;
+      -- Inset record
+      RETURN dfn_insert_sttftran (in_rec => in_rec);
+   END;
+
+-------------------------------------------------------------------
+   FUNCTION dfn_update_stilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE,
+      in_rmamtf   IN   stlbas.stilcmas.rmamtf%TYPE,
+      in_rmamtl   IN   stlbas.stilcmas.rmamtl%TYPE,
+      in_lcstat   IN   stlbas.stilcmas.lcstat%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      UPDATE stlbas.stilcmas a
+         SET a.rmamtf = (ABS (a.rmamtf) - in_rmamtf),     --abs added by ishak
+             a.rmamtl = (ABS (a.rmamtl) - in_rmamtl),     --abs added by ishak
+             a.lcstat = in_lcstat
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.actnum = in_actnum;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+-------------------------------------------------------------------
+   FUNCTION dfn_insert_sttrndtl (in_rec IN stlbas.sttrndtl%ROWTYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      INSERT INTO stlbas.sttrndtl
+           VALUES in_rec;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+-------------------------------------------------------------------
+   -- Insert into sttrndtl
+   FUNCTION dfn_insert_sttrndtl (
+      in_compcode   IN   stlbas.sttrndtl.compcode%TYPE,
+      in_docttype   IN   stlbas.sttrndtl.docttype%TYPE,
+      in_subttype   IN   stlbas.sttrndtl.subttype%TYPE,
+      in_docnumbr   IN   stlbas.sttrndtl.docnumbr%TYPE,
+      in_doctdate   IN   stlbas.sttrndtl.doctdate%TYPE,
+      in_serlnumb   IN   stlbas.sttrndtl.serlnumb%TYPE,
+      in_acctcode   IN   stlbas.sttrndtl.acctcode%TYPE,
+      in_naration   IN   stlbas.sttrndtl.naration%TYPE,
+      in_dbcrcode   IN   stlbas.sttrndtl.dbcrcode%TYPE,
+      in_currcode   IN   stlbas.sttrndtl.currcode%TYPE,
+      in_excgrate   IN   stlbas.sttrndtl.excgrate%TYPE,
+      in_jvfcamnt   IN   stlbas.sttrndtl.jvfcamnt%TYPE,
+      in_jvlcamnt   IN   stlbas.sttrndtl.jvlcamnt%TYPE,
+      in_oprstamp   IN   stlbas.sttrndtl.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.sttrndtl.timstamp%TYPE,
+      in_refdocno   IN   stlbas.sttrndtl.refdocno%TYPE,
+      in_refdocdt   IN   stlbas.sttrndtl.refdocdt%TYPE,
+      in_costcode   IN   stlbas.sttrndtl.costcode%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.sttrndtl%ROWTYPE;
+   BEGIN
+      in_rec.compcode := in_compcode;
+      in_rec.docttype := in_docttype;
+      in_rec.subttype := in_subttype;
+      in_rec.docnumbr := in_docnumbr;
+      in_rec.doctdate := in_doctdate;
+      in_rec.serlnumb := in_serlnumb;
+      in_rec.acctcode := in_acctcode;
+      in_rec.naration := in_naration;
+      in_rec.dbcrcode := in_dbcrcode;
+      in_rec.currcode := in_currcode;
+      in_rec.excgrate := in_excgrate;
+      in_rec.jvfcamnt := in_jvfcamnt;
+      in_rec.jvlcamnt := in_jvlcamnt;
+      in_rec.oprstamp := in_oprstamp;
+      in_rec.timstamp := in_timstamp;
+      in_rec.refdocno := in_refdocno;
+      in_rec.refdocdt := in_refdocdt;
+      in_rec.costcode := in_costcode;
+      RETURN dfn_insert_sttrndtl (in_rec => in_rec);
+   END;
+
+--------------
+   FUNCTION dfn_lc_lib_rv_bo (
+      in_compcode   IN   stlbas.sttrndtl.compcode%TYPE,
+      in_docttype   IN   stlbas.sttrndtl.docttype%TYPE,
+      in_subttype   IN   stlbas.sttrndtl.subttype%TYPE,
+      in_docnumbr   IN   stlbas.sttrndtl.docnumbr%TYPE,
+      in_doctdate   IN   stlbas.sttrndtl.doctdate%TYPE,
+      --in_acctcode   IN   stlbas.sttrndtl.acctcode%TYPE,
+      in_naration   IN   stlbas.sttrndtl.naration%TYPE,
+      in_jvfcamnt   IN   stlbas.sttrndtl.jvfcamnt%TYPE,
+      in_jvlcamnt   IN   stlbas.sttrndtl.jvlcamnt%TYPE,
+      in_oprstamp   IN   stlbas.sttrndtl.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.sttrndtl.timstamp%TYPE,
+      in_refdocno   IN   stlbas.sttrndtl.refdocno%TYPE,
+      in_refdocdt   IN   stlbas.sttrndtl.refdocdt%TYPE,
+      in_lctype     IN   stlbas.ft_code_detail.lctype%TYPE,
+      in_lcoprtyp   IN   stlbas.ft_code_detail.lcoprtyp%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      v_glcode_c    stlbas.stchrtac.acctcode%TYPE;
+      v_glcode_d    stlbas.stchrtac.acctcode%TYPE;
+      in_acctcode   stlbas.sttrndtl.acctcode%TYPE;
+      in_currcode   stlbas.sttrndtl.currcode%TYPE   := 'BDT';
+      in_costcode   stlbas.sttrndtl.costcode%TYPE   := '00000';
+   BEGIN
+      v_glcode_d :=
+         stlbas.dpk_lc_utility.dfn_getlclib_glcode
+                                                 (in_lctype        => in_lctype,
+                                                  in_lcoprtyp      => in_lcoprtyp,
+                                                  in_debcre        => 'D'
+                                                 );
+      v_glcode_c := CONCAT ('1', SUBSTR (v_glcode_d, 2, 7));
+
+      IF stlbas.dpk_lc_dml.dfn_insert_sttrndtl
+            (in_compcode      => in_compcode,
+             in_docttype      => in_docttype,
+             in_subttype      => in_subttype,
+             in_docnumbr      => in_docnumbr,
+             in_doctdate      => in_doctdate,
+             in_serlnumb      => 1,
+             in_acctcode      => v_glcode_d,
+             in_naration      => in_naration,
+             in_dbcrcode      => 'D',
+             in_currcode      => in_currcode,
+             in_excgrate      => 1,
+             in_jvfcamnt      => in_jvlcamnt,                   --in_jvfcamnt,
+             in_jvlcamnt      => in_jvlcamnt,
+             in_oprstamp      => in_oprstamp,
+             in_timstamp      => in_timstamp,
+             in_refdocno      => in_refdocno,
+             in_refdocdt      => in_refdocdt,
+             in_costcode      => in_costcode
+            )                                      -- Banker's Liability Debit
+      THEN
+         IF stlbas.dpk_lc_dml.dfn_insert_sttrndtl
+               (in_compcode      => in_compcode,
+                in_docttype      => in_docttype,
+                in_subttype      => in_subttype,
+                in_docnumbr      => in_docnumbr,
+                in_doctdate      => in_doctdate,
+                in_serlnumb      => 2,
+                in_acctcode      => v_glcode_c,
+                in_naration      => in_naration,
+                in_dbcrcode      => 'C',
+                in_currcode      => in_currcode,
+                in_excgrate      => 1,
+                in_jvfcamnt      => in_jvlcamnt,                --in_jvfcamnt,
+                in_jvlcamnt      => in_jvlcamnt,
+                in_oprstamp      => in_oprstamp,
+                in_timstamp      => in_timstamp,
+                in_refdocno      => in_refdocno,
+                in_refdocdt      => in_refdocdt,
+                in_costcode      => in_costcode
+               )                                -- Customer's Liability Credit
+         THEN
+            RETURN TRUE;
+         ELSE
+            RETURN FALSE;
+         END IF;
+      ELSE
+         RETURN FALSE;
+      END IF;
+   END;
+
+----------------
+ -- Update  shipping Guarantee stilcmas
+   FUNCTION dfn_update_stilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE,
+      in_shrmmt   IN   stlbas.stilcmas.shrmmt%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      UPDATE stlbas.stilcmas a
+         SET a.shrmmt = (a.shrmmt - in_shrmmt)
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.actnum = in_actnum;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+-- Update  sttftran status
+   FUNCTION dfn_update_sttftran (
+      in_brancd   IN   stlbas.sttftran.brancd%TYPE,
+      in_actype   IN   stlbas.sttftran.actype%TYPE,
+      in_actnum   IN   stlbas.sttftran.actnum%TYPE,
+      in_sgacno   IN   stlbas.sttftran.sgacno%TYPE,
+      in_status   IN   stlbas.sttftran.status%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      UPDATE stlbas.sttftran a
+         SET a.status = in_status
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.actnum = in_actnum
+         AND a.sgacno = in_sgacno
+         AND a.status = 'I'
+         AND a.oprtyp IN ('SHG', 'ACP');
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+----------------
+-- Update  Acceptance remaining amount in stilcmas
+   FUNCTION dfn_update_stilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE,
+      in_acprmt   IN   stlbas.stilcmas.acprmt%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      UPDATE stlbas.stilcmas a
+         SET a.acprmt = (a.acprmt - in_acprmt)
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.actnum = in_actnum;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+----------------
+   FUNCTION dfn_update_stilcmas (
+      in_brancd   IN   stlbas.stilcmas.brancd%TYPE,
+      in_actype   IN   stlbas.stilcmas.actype%TYPE,
+      in_actnum   IN   stlbas.stilcmas.actnum%TYPE,
+      in_rmamtf   IN   stlbas.stilcmas.rmamtf%TYPE,
+      in_rmamtl   IN   stlbas.stilcmas.rmamtl%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      UPDATE stlbas.stilcmas a
+         SET a.rmamtf = (ABS (a.rmamtf) - in_rmamtf),     --abs added by ishak
+             a.rmamtl = (ABS (a.rmamtl) - in_rmamtl)      --abs added by ishak
+       WHERE a.brancd = in_brancd
+         AND a.actype = in_actype
+         AND a.actnum = in_actnum;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+----------------
+
+-------------
+   FUNCTION dfn_insert_stfctrad (
+      in_brancd     IN   stlbas.stfctrad.brancd%TYPE,
+      in_doctyp     IN   stlbas.stfctrad.doctyp%TYPE,
+      in_docnum     IN   stlbas.stfctrad.docnum%TYPE,
+      in_docdat     IN   stlbas.stfctrad.docdat%TYPE,
+      in_tranty     IN   stlbas.stfctrad.tranty%TYPE,
+      in_oprcod     IN   stlbas.stfctrad.oprcod%TYPE,
+      in_cusnam     IN   stlbas.stfctrad.cusnam%TYPE,
+      in_passno     IN   stlbas.stfctrad.passno%TYPE,
+      in_pissdt     IN   stlbas.stfctrad.pissdt%TYPE,
+      in_cuntry     IN   stlbas.stfctrad.cuntry%TYPE,
+      in_pascon     IN   stlbas.stfctrad.pascon%TYPE,                                                    --add by shihab
+      in_curcde     IN   stlbas.stfctrad.curcde%TYPE,
+      in_exrate     IN   stlbas.stfctrad.exrate%TYPE,
+      in_fcamnt     IN   stlbas.stfctrad.fcamnt%TYPE,
+      in_refdcn     IN   stlbas.stfctrad.refdcn%TYPE,
+      in_oprstamp   IN   stlbas.stfctrad.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.stfctrad.timstamp%TYPE,
+      in_btcode     IN   stlbas.stfctrad.btcode%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.stfctrad%ROWTYPE;
+   BEGIN
+      in_rec.brancd              := in_brancd;
+      in_rec.doctyp              := in_doctyp;
+      in_rec.docnum              := in_docnum;
+      in_rec.docdat              := in_docdat;
+      in_rec.tranty              := in_tranty;
+      in_rec.oprcod              := in_oprcod;
+      in_rec.cusnam              := in_cusnam;
+      in_rec.passno              := in_passno;
+      in_rec.pissdt              := in_pissdt;
+      in_rec.cuntry              := in_cuntry;
+      in_rec.pascon              := in_pascon;
+      in_rec.curcde              := in_curcde;
+      in_rec.exrate              := in_exrate;
+      in_rec.fcamnt              := in_fcamnt;
+      in_rec.refdcn              := in_refdcn;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      in_rec.btcode              := in_btcode;
+      RETURN dfn_insert_stfctrad (in_rec => in_rec);
+   END dfn_insert_stfctrad;
+
+-----------------------------------------------------
+   FUNCTION dfn_insert_stfctrad (in_rec IN stlbas.stfctrad%ROWTYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      INSERT INTO stlbas.stfctrad
+           VALUES in_rec;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END;
+
+   FUNCTION dfn_insert_stfetran (in_rec IN stlbas.stfetran%ROWTYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      INSERT INTO stlbas.stfetran
+           VALUES in_rec;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   EXCEPTION
+      WHEN OTHERS
+      THEN
+         raise_application_error (-20001, 'Generate ' || SQLERRM);
+   END dfn_insert_stfetran;
+
+   FUNCTION dfn_insert_stfetran (
+      in_brancd     IN   stlbas.stfetran.brancd%TYPE,
+      in_doctyp     IN   stlbas.stfetran.doctyp%TYPE,
+      in_docnum     IN   stlbas.stfetran.docnum%TYPE,
+      in_sernum     IN   stlbas.stfetran.sernum%TYPE,
+      in_docdat     IN   stlbas.stfetran.docdat%TYPE,
+      in_valdat     IN   stlbas.stfetran.valdat%TYPE,
+      in_oprcod     IN   stlbas.stfetran.oprcod%TYPE,
+      in_actype     IN   stlbas.stfetran.actype%TYPE,
+      in_actnum     IN   stlbas.stfetran.actnum%TYPE,
+      in_curcde     IN   stlbas.stfetran.curcde%TYPE,
+      in_exrate     IN   stlbas.stfetran.exrate%TYPE,
+      in_debcre     IN   stlbas.stfetran.debcre%TYPE,
+      in_dbamfc     IN   stlbas.stfetran.dbamfc%TYPE,
+      in_dbamlc     IN   stlbas.stfetran.dbamlc%TYPE,
+      in_cramfc     IN   stlbas.stfetran.cramfc%TYPE,
+      in_cramlc     IN   stlbas.stfetran.cramlc%TYPE,
+      in_balflg     IN   stlbas.stfetran.balflg%TYPE,
+      in_chgflg     IN   stlbas.stfetran.chgflg%TYPE,
+      in_prtflg     IN   stlbas.stfetran.prtflg%TYPE,
+      in_opbrancd   IN   stlbas.stfetran.opbrancd%TYPE,
+      in_modcde     IN   stlbas.stfetran.modcde%TYPE,
+      in_drcode     IN   stlbas.stfetran.drcode%TYPE,
+      in_crcode     IN   stlbas.stfetran.crcode%TYPE,
+      in_oprstamp   IN   stlbas.stfetran.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.stfetran.timstamp%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.stfetran%ROWTYPE;
+   BEGIN
+      in_rec.brancd              := in_brancd;
+      in_rec.doctyp              := in_doctyp;
+      in_rec.docnum              := in_docnum;
+      in_rec.sernum              := in_sernum;
+      in_rec.docdat              := in_docdat;
+      in_rec.valdat              := in_valdat;
+      in_rec.oprcod              := in_oprcod;
+      in_rec.actype              := in_actype;
+      in_rec.actnum              := in_actnum;
+      in_rec.curcde              := in_curcde;
+      in_rec.exrate              := in_exrate;
+      in_rec.debcre              := in_debcre;
+      in_rec.dbamfc              := in_dbamfc;
+      in_rec.dbamlc              := in_dbamlc;
+      in_rec.cramfc              := in_cramfc;
+      in_rec.cramlc              := in_cramlc;
+      in_rec.balflg              := in_balflg;
+      in_rec.chgflg              := in_chgflg;
+      in_rec.prtflg              := in_prtflg;
+      in_rec.opbrancd            := in_opbrancd;
+      in_rec.modcde              := in_modcde;
+      in_rec.drcode              := in_drcode;
+      in_rec.crcode              := in_crcode;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      RETURN dfn_insert_stfetran (in_rec => in_rec);
+   END;
+
+   FUNCTION dfn_insert_stfetran (
+      in_brancd     IN   stlbas.stfetran.brancd%TYPE,
+      in_doctyp     IN   stlbas.stfetran.doctyp%TYPE,
+      in_docnum     IN   stlbas.stfetran.docnum%TYPE,
+      in_sernum     IN   stlbas.stfetran.sernum%TYPE,
+      in_docdat     IN   stlbas.stfetran.docdat%TYPE,
+      in_valdat     IN   stlbas.stfetran.valdat%TYPE,
+      in_oprcod     IN   stlbas.stfetran.oprcod%TYPE,
+      in_actype     IN   stlbas.stfetran.actype%TYPE,
+      in_actnum     IN   stlbas.stfetran.actnum%TYPE,
+      in_curcde     IN   stlbas.stfetran.curcde%TYPE,
+      in_exrate     IN   stlbas.stfetran.exrate%TYPE,
+      in_debcre     IN   stlbas.stfetran.debcre%TYPE,
+      in_dbamfc     IN   stlbas.stfetran.dbamfc%TYPE,
+      in_dbamlc     IN   stlbas.stfetran.dbamlc%TYPE,
+      in_cramfc     IN   stlbas.stfetran.cramfc%TYPE,
+      in_cramlc     IN   stlbas.stfetran.cramlc%TYPE,
+      in_balflg     IN   stlbas.stfetran.balflg%TYPE,
+      in_chgflg     IN   stlbas.stfetran.chgflg%TYPE,
+      in_prtflg     IN   stlbas.stfetran.prtflg%TYPE,
+      in_opbrancd   IN   stlbas.stfetran.opbrancd%TYPE,
+      in_modcde     IN   stlbas.stfetran.modcde%TYPE,
+      in_drcode     IN   stlbas.stfetran.drcode%TYPE,
+      in_crcode     IN   stlbas.stfetran.crcode%TYPE,
+      in_oprstamp   IN   stlbas.stfetran.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.stfetran.timstamp%TYPE,
+      in_glflag     IN   stlbas.stfetran.glflag%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.stfetran%ROWTYPE;
+   BEGIN
+      in_rec.brancd              := in_brancd;
+      in_rec.doctyp              := in_doctyp;
+      in_rec.docnum              := in_docnum;
+      in_rec.sernum              := in_sernum;
+      in_rec.docdat              := in_docdat;
+      in_rec.valdat              := in_valdat;
+      in_rec.oprcod              := in_oprcod;
+      in_rec.actype              := in_actype;
+      in_rec.actnum              := in_actnum;
+      in_rec.curcde              := in_curcde;
+      in_rec.exrate              := in_exrate;
+      in_rec.debcre              := in_debcre;
+      in_rec.dbamfc              := in_dbamfc;
+      in_rec.dbamlc              := in_dbamlc;
+      in_rec.cramfc              := in_cramfc;
+      in_rec.cramlc              := in_cramlc;
+      in_rec.balflg              := in_balflg;
+      in_rec.chgflg              := in_chgflg;
+      in_rec.prtflg              := in_prtflg;
+      in_rec.opbrancd            := in_opbrancd;
+      in_rec.modcde              := in_modcde;
+      in_rec.drcode              := in_drcode;
+      in_rec.crcode              := in_crcode;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      in_rec.glflag              := in_glflag;
+      RETURN dfn_insert_stfetran (in_rec => in_rec);
+   END;
+
+   FUNCTION dfn_insert_sttrndtl (
+      in_compcode   IN   stlbas.sttrndtl.compcode%TYPE,
+      in_docttype   IN   stlbas.sttrndtl.docttype%TYPE,
+      in_subttype   IN   stlbas.sttrndtl.subttype%TYPE,
+      in_docnumbr   IN   stlbas.sttrndtl.docnumbr%TYPE,
+      in_doctdate   IN   stlbas.sttrndtl.doctdate%TYPE,
+      in_serlnumb   IN   stlbas.sttrndtl.serlnumb%TYPE,
+      in_acctcode   IN   stlbas.sttrndtl.acctcode%TYPE,
+      in_naration   IN   stlbas.sttrndtl.naration%TYPE,
+      in_dbcrcode   IN   stlbas.sttrndtl.dbcrcode%TYPE,
+      in_currcode   IN   stlbas.sttrndtl.currcode%TYPE,
+      in_excgrate   IN   stlbas.sttrndtl.excgrate%TYPE,
+      in_jvfcamnt   IN   stlbas.sttrndtl.jvfcamnt%TYPE,
+      in_jvlcamnt   IN   stlbas.sttrndtl.jvlcamnt%TYPE,
+      in_refdocno   IN   stlbas.sttrndtl.refdocno%TYPE,
+      in_refdocdt   IN   stlbas.sttrndtl.refdocdt%TYPE,
+      in_oprstamp   IN   stlbas.sttrndtl.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.sttrndtl.timstamp%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.sttrndtl%ROWTYPE;
+   BEGIN
+      in_rec.compcode            := in_compcode;
+      in_rec.docttype            := in_docttype;
+      in_rec.subttype            := in_subttype;
+      in_rec.docnumbr            := in_docnumbr;
+      in_rec.doctdate            := in_doctdate;
+      in_rec.serlnumb            := in_serlnumb;
+      in_rec.acctcode            := in_acctcode;
+      in_rec.naration            := in_naration;
+      in_rec.dbcrcode            := in_dbcrcode;
+      in_rec.currcode            := in_currcode;
+      in_rec.excgrate            := in_excgrate;
+      in_rec.jvfcamnt            := in_jvfcamnt;
+      in_rec.jvlcamnt            := in_jvlcamnt;
+      in_rec.refdocno            := in_refdocno;
+      in_rec.refdocdt            := in_refdocdt;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      RETURN dfn_insert_sttrndtl (in_rec => in_rec);
+   END dfn_insert_sttrndtl;
+
+   FUNCTION dfn_insert_mv_stbibtca (in_rec IN stlbas.mv_stbibtca%ROWTYPE)
+      RETURN BOOLEAN
+   IS
+   BEGIN
+      INSERT INTO stlbas.mv_stbibtca
+           VALUES in_rec;
+
+      RETURN stlbas.dpk_lc_dml.dfn_dml_check;
+   END dfn_insert_mv_stbibtca;
+
+   FUNCTION dfn_insert_mv_stbibtca (
+      in_compcode   IN   stlbas.mv_stbibtca.compcode%TYPE,
+      in_docttype   IN   stlbas.mv_stbibtca.docttype%TYPE,
+      in_subttype   IN   stlbas.mv_stbibtca.subttype%TYPE,
+      in_docnumbr   IN   stlbas.mv_stbibtca.docnumbr%TYPE,
+      in_doctdate   IN   stlbas.mv_stbibtca.doctdate%TYPE,
+      in_serlnumb   IN   stlbas.mv_stbibtca.serlnumb%TYPE,
+      in_acctcode   IN   stlbas.mv_stbibtca.acctcode%TYPE,
+      in_naration   IN   stlbas.mv_stbibtca.naration%TYPE,
+      in_dbcrcode   IN   stlbas.mv_stbibtca.dbcrcode%TYPE,
+      in_currcode   IN   stlbas.mv_stbibtca.currcode%TYPE,
+      in_excgrate   IN   stlbas.mv_stbibtca.excgrate%TYPE,
+      in_jvfcamnt   IN   stlbas.mv_stbibtca.jvfcamnt%TYPE,
+      in_jvlcamnt   IN   stlbas.mv_stbibtca.jvlcamnt%TYPE,
+      in_refdocno   IN   stlbas.mv_stbibtca.refdocno%TYPE,
+      in_refdocdt   IN   stlbas.mv_stbibtca.refdocdt%TYPE,
+      in_oprstamp   IN   stlbas.mv_stbibtca.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.mv_stbibtca.timstamp%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.mv_stbibtca%ROWTYPE;
+   BEGIN
+      in_rec.compcode            := in_compcode;
+      in_rec.docttype            := in_docttype;
+      in_rec.subttype            := in_subttype;
+      in_rec.docnumbr            := in_docnumbr;
+      in_rec.doctdate            := in_doctdate;
+      in_rec.serlnumb            := in_serlnumb;
+      in_rec.acctcode            := in_acctcode;
+      in_rec.naration            := in_naration;
+      in_rec.dbcrcode            := in_dbcrcode;
+      in_rec.currcode            := in_currcode;
+      in_rec.excgrate            := in_excgrate;
+      in_rec.jvfcamnt            := in_jvfcamnt;
+      in_rec.jvlcamnt            := in_jvlcamnt;
+      in_rec.refdocno            := in_refdocno;
+      in_rec.refdocdt            := in_refdocdt;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      RETURN dfn_insert_mv_stbibtca (in_rec => in_rec);
+   END dfn_insert_mv_stbibtca;
+
+   FUNCTION dfn_insert_stfetran (
+      in_brancd     IN   stlbas.stfetran.brancd%TYPE,
+      in_doctyp     IN   stlbas.stfetran.doctyp%TYPE,
+      in_docnum     IN   stlbas.stfetran.docnum%TYPE,
+      in_sernum     IN   stlbas.stfetran.sernum%TYPE,
+      in_docdat     IN   stlbas.stfetran.docdat%TYPE,
+      in_valdat     IN   stlbas.stfetran.valdat%TYPE,
+      in_oprcod     IN   stlbas.stfetran.oprcod%TYPE,
+      in_actype     IN   stlbas.stfetran.actype%TYPE,
+      in_actnum     IN   stlbas.stfetran.actnum%TYPE,
+      in_curcde     IN   stlbas.stfetran.curcde%TYPE,
+      in_exrate     IN   stlbas.stfetran.exrate%TYPE,
+      in_debcre     IN   stlbas.stfetran.debcre%TYPE,
+      in_dbamfc     IN   stlbas.stfetran.dbamfc%TYPE,
+      in_dbamlc     IN   stlbas.stfetran.dbamlc%TYPE,
+      in_cramfc     IN   stlbas.stfetran.cramfc%TYPE,
+      in_cramlc     IN   stlbas.stfetran.cramlc%TYPE,
+      in_balflg     IN   stlbas.stfetran.balflg%TYPE,
+      in_chgflg     IN   stlbas.stfetran.chgflg%TYPE,
+      in_chqnum     IN   stlbas.stfetran.chqnum%TYPE,
+      in_chqdat     IN   stlbas.stfetran.chqdat%TYPE,
+      in_prtflg     IN   stlbas.stfetran.prtflg%TYPE,
+      in_opbrancd   IN   stlbas.stfetran.opbrancd%TYPE,
+      in_remark     IN   stlbas.stfetran.remark%TYPE,
+      in_modcde     IN   stlbas.stfetran.modcde%TYPE,
+      in_drcode     IN   stlbas.stfetran.drcode%TYPE,
+      in_crcode     IN   stlbas.stfetran.crcode%TYPE,
+      in_glflag     IN   stlbas.stfetran.glflag%TYPE,
+      in_oprstamp   IN   stlbas.stfetran.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.stfetran.timstamp%TYPE,
+      in_orrebr     IN   stlbas.stfetran.orrebr%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.stfetran%ROWTYPE;
+   BEGIN
+      in_rec.brancd              := in_brancd;
+      in_rec.doctyp              := in_doctyp;
+      in_rec.docnum              := in_docnum;
+      in_rec.sernum              := in_sernum;
+      in_rec.docdat              := in_docdat;
+      in_rec.valdat              := in_valdat;
+      in_rec.oprcod              := in_oprcod;
+      in_rec.actype              := in_actype;
+      in_rec.actnum              := in_actnum;
+      in_rec.curcde              := in_curcde;
+      in_rec.exrate              := in_exrate;
+      in_rec.debcre              := in_debcre;
+      in_rec.dbamfc              := in_dbamfc;
+      in_rec.dbamlc              := in_dbamlc;
+      in_rec.cramfc              := in_cramfc;
+      in_rec.cramlc              := in_cramlc;
+      in_rec.balflg              := in_balflg;
+      in_rec.chgflg              := in_chgflg;
+      in_rec.chqnum              := in_chqnum;
+      in_rec.chqdat              := in_chqdat;
+      in_rec.prtflg              := in_prtflg;
+      in_rec.opbrancd            := in_opbrancd;
+      in_rec.remark              := in_remark;
+      in_rec.modcde              := in_modcde;
+      in_rec.drcode              := in_drcode;
+      in_rec.crcode              := in_crcode;
+      in_rec.glflag              := in_glflag;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      in_rec.orrebr              := in_orrebr;
+      RETURN dfn_insert_stfetran (in_rec => in_rec);
+   END dfn_insert_stfetran;
+
+   FUNCTION dfn_insert_sttrndtl (
+      in_compcode   IN   stlbas.sttrndtl.compcode%TYPE,
+      in_docttype   IN   stlbas.sttrndtl.docttype%TYPE,
+      in_subttype   IN   stlbas.sttrndtl.subttype%TYPE,
+      in_docnumbr   IN   stlbas.sttrndtl.docnumbr%TYPE,
+      in_doctdate   IN   stlbas.sttrndtl.doctdate%TYPE,
+      in_serlnumb   IN   stlbas.sttrndtl.serlnumb%TYPE,
+      in_acctcode   IN   stlbas.sttrndtl.acctcode%TYPE,
+      in_naration   IN   stlbas.sttrndtl.naration%TYPE,
+      in_dbcrcode   IN   stlbas.sttrndtl.dbcrcode%TYPE,
+      in_currcode   IN   stlbas.sttrndtl.currcode%TYPE,
+      in_excgrate   IN   stlbas.sttrndtl.excgrate%TYPE,
+      in_jvfcamnt   IN   stlbas.sttrndtl.jvfcamnt%TYPE,
+      in_jvlcamnt   IN   stlbas.sttrndtl.jvlcamnt%TYPE,
+      in_refdocno   IN   stlbas.sttrndtl.refdocno%TYPE,
+      in_refdocdt   IN   stlbas.sttrndtl.refdocdt%TYPE,
+      in_oprstamp   IN   stlbas.sttrndtl.oprstamp%TYPE,
+      in_timstamp   IN   stlbas.sttrndtl.timstamp%TYPE,
+      in_refno9     IN   stlbas.sttrndtl.refno9%TYPE,
+      in_authflag   IN   stlbas.sttrndtl.authflag%TYPE
+   )
+      RETURN BOOLEAN
+   IS
+      in_rec   stlbas.sttrndtl%ROWTYPE;
+   BEGIN
+      in_rec.compcode            := in_compcode;
+      in_rec.docttype            := in_docttype;
+      in_rec.subttype            := in_subttype;
+      in_rec.docnumbr            := in_docnumbr;
+      in_rec.doctdate            := in_doctdate;
+      in_rec.serlnumb            := in_serlnumb;
+      in_rec.acctcode            := in_acctcode;
+      in_rec.naration            := in_naration;
+      in_rec.dbcrcode            := in_dbcrcode;
+      in_rec.currcode            := in_currcode;
+      in_rec.excgrate            := in_excgrate;
+      in_rec.jvfcamnt            := in_jvfcamnt;
+      in_rec.jvlcamnt            := in_jvlcamnt;
+      in_rec.refdocno            := in_refdocno;
+      in_rec.refdocdt            := in_refdocdt;
+      in_rec.oprstamp            := in_oprstamp;
+      in_rec.timstamp            := in_timstamp;
+      in_rec.refno9              := in_refno9;
+      in_rec.authflag            := in_authflag;
+      RETURN dfn_insert_sttrndtl (in_rec => in_rec);
+   END dfn_insert_sttrndtl;
+
+END;
+/
